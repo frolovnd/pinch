@@ -55,6 +55,7 @@ Overlay::Overlay(Capture capture, Settings settings, QString saveDir, QWidget* p
     m_toolbar->setThickness(m_style.thickness);
     connect(m_toolbar, &Toolbar::toolChosen, this, &Overlay::setTool);
     connect(m_toolbar, &Toolbar::colorChosen, this, &Overlay::setColor);
+    connect(m_toolbar, &Toolbar::thicknessChosen, this, &Overlay::setThickness);
     connect(m_toolbar, &Toolbar::undoRequested, this, &Overlay::undo);
     connect(m_toolbar, &Toolbar::redoRequested, this, &Overlay::redo);
     connect(m_toolbar, &Toolbar::copyRequested, this, &Overlay::copyResult);
@@ -529,7 +530,11 @@ void Overlay::mouseDoubleClickEvent(QMouseEvent* event)
 void Overlay::wheelEvent(QWheelEvent* event)
 {
     // Тачпады и hi-res колёса шлют дробные шаги: копим, меняем толщину на 1 за каждые 120 единиц.
-    m_wheelAccumulator += event->angleDelta().y();
+    const int delta = event->angleDelta().y();
+    // Смена направления сбрасывает остаток: иначе он гасил бы первые единицы обратного движения.
+    if ((delta > 0 && m_wheelAccumulator < 0) || (delta < 0 && m_wheelAccumulator > 0))
+        m_wheelAccumulator = 0;
+    m_wheelAccumulator += delta;
     const int steps = m_wheelAccumulator / 120;
     if (steps != 0) {
         m_wheelAccumulator -= steps * 120;
@@ -596,6 +601,9 @@ void Overlay::keyPressEvent(QKeyEvent* event)
     case Qt::Key_N: setTool(Tool::Counter); return;
     case Qt::Key_B: setTool(Tool::Pixelate); return;
     case Qt::Key_V: setTool(Tool::None); return;
+    case Qt::Key_1: case Qt::Key_2: case Qt::Key_3: case Qt::Key_4: case Qt::Key_5:
+        setThickness(Toolbar::thicknessPresets().at(key - Qt::Key_1));
+        return;
     default: return;
     }
 }
@@ -643,12 +651,8 @@ void Overlay::paintSizeLabel(QPainter& painter) const
     const QString text = QStringLiteral("%1×%2").arg(m_selection.width()).arg(m_selection.height());
     const QFontMetrics metrics(painter.font());
     const QSize size(metrics.horizontalAdvance(text) + 12, metrics.height() + 6);
-    // Над выделением, если там есть видимая часть монитора; иначе внутри.
-    const QRect screen = screenAt(m_selection.topLeft());
-    const int minY = screen.isEmpty() ? 0 : screen.top();
-    QPoint topLeft(m_selection.left(), m_selection.top() - size.height() - 4);
-    if (screen.isEmpty() || topLeft.y() < minY)
-        topLeft = m_selection.topLeft() + QPoint(4, 4);
+    // Над выделением, если там есть видимая часть монитора; иначе внутри, на видимом мониторе.
+    const QPoint topLeft = sizeLabelPosition(m_selection, size, m_capture.screens);
     const QRect box(topLeft, size);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(0, 0, 0, 160));

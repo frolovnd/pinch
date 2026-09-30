@@ -3,6 +3,9 @@
 #include "toolbar.h"
 
 #include <QLabel>
+#include <QLayout>
+#include <QSlider>
+#include <QWheelEvent>
 #include <QToolButton>
 
 namespace {
@@ -12,6 +15,14 @@ QToolButton* button(Toolbar& tb, const char* name)
     if (!b)
         qFatal("нет кнопки %s", name);
     return b;
+}
+
+QSlider* slider(Toolbar& tb)
+{
+    auto* s = tb.findChild<QSlider*>(QStringLiteral("thickness-slider"));
+    if (!s)
+        qFatal("нет ползунка");
+    return s;
 }
 }
 
@@ -105,9 +116,95 @@ private slots:
         Toolbar tb;
         QCOMPARE(tb.focusPolicy(), Qt::NoFocus);
         const auto buttons = tb.findChildren<QToolButton*>();
-        QCOMPARE(buttons.size(), 9 + 8 + 2 + 4);
+        QCOMPARE(buttons.size(), 9 + 8 + 5 + 2 + 4);
         for (QToolButton* b : buttons)
             QCOMPARE(b->focusPolicy(), Qt::NoFocus);
+        QCOMPARE(slider(tb)->focusPolicy(), Qt::NoFocus);
+    }
+
+    void thicknessPresetClickEmits()
+    {
+        Toolbar tb;
+        QVector<int> got;
+        connect(&tb, &Toolbar::thicknessChosen, this, [&](int t) { got << t; });
+        button(tb, "thickness-2")->click();
+        QCOMPARE(got, QVector<int>{8});
+        for (int i = 0; i < 5; ++i)
+            QCOMPARE(button(tb, QByteArray("thickness-" + QByteArray::number(i)).constData())->isChecked(), i == 2);
+        QCOMPARE(slider(tb)->value(), 8);
+        QCOMPARE(tb.findChild<QLabel*>(QStringLiteral("thickness"))->text(), QStringLiteral("8px"));
+    }
+
+    void setThicknessSyncsWithoutEmitting()
+    {
+        Toolbar tb;
+        int emitted = 0;
+        connect(&tb, &Toolbar::thicknessChosen, this, [&](int) { ++emitted; });
+        tb.setThickness(14);
+        QVERIFY(button(tb, "thickness-3")->isChecked());
+        QCOMPARE(slider(tb)->value(), 14);
+        QCOMPARE(tb.findChild<QLabel*>(QStringLiteral("thickness"))->text(), QStringLiteral("14px"));
+        tb.setThickness(5);
+        for (int i = 0; i < 5; ++i)
+            QVERIFY(!button(tb, QByteArray("thickness-" + QByteArray::number(i)).constData())->isChecked());
+        QCOMPARE(slider(tb)->value(), 5);
+        QCOMPARE(emitted, 0);
+    }
+
+    void presetsValues()
+    {
+        QCOMPARE(Toolbar::thicknessPresets(), (QVector<int>{2, 4, 8, 14, 24}));
+    }
+
+    void sliderEmits()
+    {
+        Toolbar tb;
+        int got = 0;
+        connect(&tb, &Toolbar::thicknessChosen, this, [&](int t) { got = t; });
+        slider(tb)->setValue(20);
+        QCOMPARE(got, 20);
+        QCOMPARE(tb.findChild<QLabel*>(QStringLiteral("thickness"))->text(), QStringLiteral("20px"));
+    }
+
+    void threeRows()
+    {
+        Toolbar tb;
+        tb.adjustSize();
+        tb.layout()->activate();
+        const auto y = [&](const char* name) { return button(tb, name)->mapTo(&tb, QPoint()).y(); };
+        const int toolsY = y("tool-pen");
+        for (const char* n : {"tool-marker", "tool-line", "tool-arrow", "tool-rect", "tool-ellipse", "tool-text",
+                              "tool-counter", "tool-pixelate"})
+            QCOMPARE(y(n), toolsY);
+        const int colorsY = y("color-0");
+        QVERIFY(colorsY > toolsY);
+        for (int i = 1; i < 8; ++i)
+            QCOMPARE(y(QByteArray("color-" + QByteArray::number(i)).constData()), colorsY);
+        const int actionsY = y("undo");
+        QVERIFY(actionsY > colorsY);
+        for (const char* n : {"redo", "copy", "quicksave", "saveas", "close"})
+            QCOMPARE(y(n), actionsY);
+    }
+
+    void wheelOverSliderGoesToParent()
+    {
+        struct Recorder : QWidget {
+            int wheels = 0;
+            void wheelEvent(QWheelEvent* e) override
+            {
+                ++wheels;
+                e->accept();
+            }
+        } parent;
+        auto* tb = new Toolbar(&parent);
+        tb->move(10, 10);
+        slider(*tb)->setValue(10);
+        const int before = slider(*tb)->value();
+        QWheelEvent ev(QPointF(3, 3), slider(*tb)->mapToGlobal(QPointF(3, 3)), QPoint(), QPoint(0, 120),
+                       Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QApplication::sendEvent(slider(*tb), &ev);
+        QCOMPARE(parent.wheels, 1);
+        QCOMPARE(slider(*tb)->value(), before);
     }
 };
 

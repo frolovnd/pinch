@@ -8,6 +8,7 @@
 #include <QClipboard>
 #include <QCommandLineParser>
 #include <QLibraryInfo>
+#include <QPointer>
 #include <QTranslator>
 
 #include <sys/prctl.h>
@@ -25,8 +26,8 @@ void saveStyle(const Overlay& overlay)
 int main(int argc, char** argv)
 {
     // Снимок в памяти не должен попасть в core-дамп или читаться через ptrace другими процессами пользователя.
-    // HS_ALLOW_TRACE=1 — осознанное исключение пользователя для проверки через strace (иначе strace не читает строки и не цепляется).
-    if (!qEnvironmentVariableIsSet("HS_ALLOW_TRACE") && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0)
+    // HS_ALLOW_TRACE=1 (ровно «1») — осознанное исключение пользователя для запуска под strace (иначе strace не читает строки).
+    if (qgetenv("HS_ALLOW_TRACE") != "1" && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0)
         qWarning("не удалось отключить дампы памяти (PR_SET_DUMPABLE)");
     // Без платформенной темы Qt не подгружает весь стек GTK/ATK и не ходит за настройками темы.
     QApplication::setDesktopSettingsAware(false);
@@ -94,6 +95,9 @@ int main(int argc, char** argv)
         });
     });
 
+    QPointer<Overlay> guard(overlay);
     overlay->start();
-    return app.exec();
+    const int rc = app.exec();
+    delete guard.data(); // Esc/сохранение: оверлей не удалялся; после deleteLater указатель уже null
+    return rc;
 }

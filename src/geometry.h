@@ -29,3 +29,8 @@ QPoint snapSquare(QPoint start, QPoint end);
 // Левый верхний угол панели размером toolbar рядом с выделением так, чтобы панель
 // целиком лежала на одном мониторе.
 QPoint placeToolbar(const QRect& sel, QSize toolbar, const QVector<QRect>& screens, int margin = 8);
+
+// Левый верхний угол надписи с размером выделения. Над выделением, если эта точка лежит на мониторе,
+// содержащем левый верхний угол выделения; иначе — внутри, у левого верхнего угла пересечения выделения
+// с первым (по порядку screens) монитором, которого оно касается, со сдвигом (4, 4).
+QPoint sizeLabelPosition(const QRect& sel, QSize label, const QVector<QRect>& screens);

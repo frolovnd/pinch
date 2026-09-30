@@ -56,10 +56,12 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
 
     // mkostemp создаёт файл с O_CREAT | O_EXCL и правами 0600.
     const int fd = ::mkostemp(temp.data(), O_CLOEXEC);
-    if (fd < 0)
+    if (fd < 0) {
+        const int err = errno; // до построения сообщения: порядок вычисления аргументов не определён
         return {WriteResult::Error,
                 QStringLiteral("Не удалось создать временный файл в каталоге «%1»: %2")
-                    .arg(info.absolutePath(), sysText(errno))};
+                    .arg(info.absolutePath(), sysText(err))};
+    }
 
     bool ok = writeAll(fd, data);
     int err = ok ? 0 : errno;

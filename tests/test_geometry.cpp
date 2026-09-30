@@ -10,6 +10,7 @@ const QVector<QRect> kScreens = {
     QRect(2560, 1080, 1920, 1080),
 };
 const QSize kToolbar(700, 32);
+const QSize kLabel(60, 20);
 const QRect kBounds(0, 0, 1000, 800);
 const QRect kSel(100, 100, 200, 100); // right = 299, bottom = 199
 }
@@ -119,6 +120,26 @@ private slots:
     {
         // Центр выделения в мёртвой зоне — берётся монитор с наибольшим пересечением (DP-2).
         QCOMPARE(placeToolbar(QRect(2000, 100, 1000, 400), kToolbar, kScreens), QPoint(2560, 507));
+    }
+
+    void sizeLabelAbove()
+    {
+        QCOMPARE(sizeLabelPosition(QRect(100, 800, 300, 200), kLabel, kScreens), QPoint(100, 800 - 20 - 4));
+    }
+
+    void sizeLabelInsideAtScreenTop()
+    {
+        QCOMPARE(sizeLabelPosition(QRect(0, 720, 500, 300), kLabel, kScreens), QPoint(4, 724));
+    }
+
+    void sizeLabelWholeBounds()
+    {
+        QCOMPARE(sizeLabelPosition(QRect(0, 0, 4480, 2160), kLabel, kScreens), QPoint(4, 724));
+    }
+
+    void sizeLabelTopLeftInDeadZone()
+    {
+        QCOMPARE(sizeLabelPosition(QRect(100, 100, 2901, 901), kLabel, kScreens), QPoint(104, 724));
     }
 
     void placeToolbarNoScreens()

@@ -249,10 +249,59 @@ private slots:
     void toolbarClickWithCounterAddsNothing()
     {
         Env e;
-        drag(&e.ov, {10, 10}, {300, 200});
+        click(&e.ov, {100, 100}); // выделен весь левый монитор: панель внутри выделения
+        QCOMPARE(e.ov.selection(), QRect(0, 0, 400, 300));
+        QVERIFY(e.ov.toolbar()->geometry().intersects(e.ov.selection()));
         QTest::keyClick(&e.ov, Qt::Key_N);
+        QCOMPARE(e.ov.tool(), Tool::Counter);
         click(e.ov.toolbar(), {1, 1});
         QVERIFY(e.ov.document().annotations().isEmpty());
+    }
+
+    void digitKeysSelectPresets()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_3);
+        QCOMPARE(e.ov.style().thickness, 8);
+        QTest::keyClick(&e.ov, Qt::Key_5);
+        QCOMPARE(e.ov.style().thickness, 24);
+    }
+
+    void digitsGoIntoText()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        const int before = e.ov.style().thickness;
+        QTest::keyClicks(&e.ov, QStringLiteral("12"));
+        QCOMPARE(e.ov.style().thickness, before);
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QCOMPARE(e.ov.document().annotations().at(0).text, QStringLiteral("12"));
+    }
+
+    void toolbarPresetChangesThickness()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        e.ov.toolbar()->findChild<QToolButton*>(QStringLiteral("thickness-4"))->click();
+        QCOMPARE(e.ov.style().thickness, 24);
+    }
+
+    void wheelDirectionChangeResetsAccumulator()
+    {
+        Env e;
+        const auto wheel = [&](int dy) {
+            QWheelEvent ev(QPointF(50, 50), e.ov.mapToGlobal(QPointF(50, 50)), QPoint(), QPoint(0, dy),
+                           Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+            QApplication::sendEvent(&e.ov, &ev);
+        };
+        QCOMPARE(e.ov.style().thickness, 4);
+        wheel(100);
+        QCOMPARE(e.ov.style().thickness, 4);
+        wheel(-120);
+        QCOMPARE(e.ov.style().thickness, 3);
     }
 
     void wheelOverToolbarStillChangesThickness()

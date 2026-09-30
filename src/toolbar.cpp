@@ -1,9 +1,15 @@
 #include "toolbar.h"
 
 #include <QApplication>
+#include <QEvent>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
+#include <QPixmap>
+#include <QSignalBlocker>
+#include <QSlider>
+#include <QVBoxLayout>
 #include <QToolButton>
 
 namespace {
@@ -43,12 +49,23 @@ Toolbar::Toolbar(QWidget* parent)
         "QToolButton:disabled { color: rgba(255, 255, 255, 80); }"
         "QLabel { color: white; padding: 0 4px; }"));
 
-    m_layout = new QHBoxLayout(this);
-    m_layout->setContentsMargins(4, 4, 4, 4);
-    m_layout->setSpacing(2);
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(4, 4, 4, 4);
+    root->setSpacing(2);
+    const auto newRow = [root] {
+        auto* row = new QHBoxLayout;
+        row->setSpacing(2);
+        root->addLayout(row);
+        return row;
+    };
+    QHBoxLayout* toolsRow = newRow();
+    QHBoxLayout* styleRow = newRow();
+    QHBoxLayout* actionsRow = newRow();
 
+    // Ряд 1: инструменты.
     for (const ToolDef& def : kTools) {
-        QToolButton* b = addButton(QString::fromLatin1(def.name), QString::fromUtf8(def.glyph), QString::fromUtf8(def.tip));
+        QToolButton* b = addButton(toolsRow, QString::fromLatin1(def.name), QString::fromUtf8(def.glyph),
+                                   QString::fromUtf8(def.tip));
         b->setCheckable(true);
         const Tool tool = def.tool;
         connect(b, &QToolButton::clicked, this, [this, tool] {
@@ -60,11 +77,11 @@ Toolbar::Toolbar(QWidget* parent)
         m_toolButtons.insert(tool, b);
     }
 
-    addSeparator();
+    // Ряд 2: цвета и толщина.
     const QVector<QColor>& colors = palette();
     for (int i = 0; i < colors.size(); ++i) {
         const QColor color = colors.at(i);
-        QToolButton* b = addButton(QStringLiteral("color-%1").arg(i), QString(), color.name());
+        QToolButton* b = addButton(styleRow, QStringLiteral("color-%1").arg(i), QString(), color.name());
         b->setCheckable(true);
         b->setStyleSheet(QStringLiteral(
             "QToolButton { background: %1; min-width: 18px; max-width: 18px; min-height: 18px; max-height: 18px;"
@@ -77,26 +94,67 @@ Toolbar::Toolbar(QWidget* parent)
         m_colorButtons.append(b);
     }
 
-    addSeparator();
+    addSeparator(styleRow);
+    // Значок пресета: белый круг, диаметр растёт с толщиной.
+    static const int kDiameters[] = {4, 6, 9, 12, 16};
+    const QVector<int>& presets = thicknessPresets();
+    for (int i = 0; i < presets.size(); ++i) {
+        const int value = presets.at(i);
+        QToolButton* b = addButton(styleRow, QStringLiteral("thickness-%1").arg(i), QString(),
+                                   QStringLiteral("Толщина %1 px (клавиша %2)").arg(value).arg(i + 1));
+        b->setCheckable(true);
+        QPixmap pixmap(18, 18);
+        pixmap.fill(Qt::transparent);
+        {
+            QPainter painter(&pixmap);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(Qt::white);
+            const qreal d = kDiameters[i];
+            painter.drawEllipse(QRectF((18 - d) / 2, (18 - d) / 2, d, d));
+        }
+        b->setIcon(QIcon(pixmap));
+        connect(b, &QToolButton::clicked, this, [this, value] {
+            setThickness(value);
+            emit thicknessChosen(value);
+        });
+        m_presetButtons.append(b);
+    }
+
+    m_slider = new QSlider(Qt::Horizontal, this);
+    m_slider->setObjectName(QStringLiteral("thickness-slider"));
+    m_slider->setRange(1, 40);
+    m_slider->setSingleStep(1);
+    m_slider->setPageStep(5);
+    m_slider->setFixedWidth(90);
+    m_slider->setFocusPolicy(Qt::NoFocus);
+    m_slider->setToolTip(QStringLiteral("Толщина (колесо мыши, клавиши 1–5)"));
+    m_slider->installEventFilter(this); // колесо над ползунком уходит оверлею, а не меняет ползунок
+    connect(m_slider, &QSlider::valueChanged, this, [this](int v) {
+        setThickness(v);
+        emit thicknessChosen(v);
+    });
+    styleRow->addWidget(m_slider);
+
     m_thickness = new QLabel(this);
     m_thickness->setObjectName(QStringLiteral("thickness"));
     m_thickness->setToolTip(QStringLiteral("Толщина (колесо мыши)"));
-    m_layout->addWidget(m_thickness);
+    styleRow->addWidget(m_thickness);
 
-    addSeparator();
-    m_undo = addButton(QStringLiteral("undo"), QStringLiteral("↶"), QStringLiteral("Отменить (Ctrl+Z)"));
-    m_redo = addButton(QStringLiteral("redo"), QStringLiteral("↷"), QStringLiteral("Повторить (Ctrl+Shift+Z)"));
+    // Ряд 3: история слева, вывод справа.
+    m_undo = addButton(actionsRow, QStringLiteral("undo"), QStringLiteral("↶"), QStringLiteral("Отменить (Ctrl+Z)"));
+    m_redo = addButton(actionsRow, QStringLiteral("redo"), QStringLiteral("↷"), QStringLiteral("Повторить (Ctrl+Shift+Z)"));
     connect(m_undo, &QToolButton::clicked, this, &Toolbar::undoRequested);
     connect(m_redo, &QToolButton::clicked, this, &Toolbar::redoRequested);
 
-    addSeparator();
-    connect(addButton(QStringLiteral("copy"), QStringLiteral("⧉"), QStringLiteral("Копировать в буфер (Ctrl+C)")),
+    actionsRow->addStretch();
+    connect(addButton(actionsRow, QStringLiteral("copy"), QStringLiteral("⧉"), QStringLiteral("Копировать в буфер (Ctrl+C)")),
             &QToolButton::clicked, this, &Toolbar::copyRequested);
-    connect(addButton(QStringLiteral("quicksave"), QStringLiteral("↓"), QStringLiteral("Быстро сохранить (Ctrl+S)")),
+    connect(addButton(actionsRow, QStringLiteral("quicksave"), QStringLiteral("↓"), QStringLiteral("Быстро сохранить (Ctrl+S)")),
             &QToolButton::clicked, this, &Toolbar::quickSaveRequested);
-    connect(addButton(QStringLiteral("saveas"), QStringLiteral("…"), QStringLiteral("Сохранить как (Ctrl+Shift+S)")),
+    connect(addButton(actionsRow, QStringLiteral("saveas"), QStringLiteral("…"), QStringLiteral("Сохранить как (Ctrl+Shift+S)")),
             &QToolButton::clicked, this, &Toolbar::saveAsRequested);
-    connect(addButton(QStringLiteral("close"), QStringLiteral("✕"), QStringLiteral("Закрыть (Esc)")),
+    connect(addButton(actionsRow, QStringLiteral("close"), QStringLiteral("✕"), QStringLiteral("Закрыть (Esc)")),
             &QToolButton::clicked, this, &Toolbar::closeRequested);
 
     setTool(Tool::None);
@@ -113,7 +171,27 @@ const QVector<QColor>& Toolbar::palette()
     return colors;
 }
 
+const QVector<int>& Toolbar::thicknessPresets()
+{
+    static const QVector<int> presets = {2, 4, 8, 14, 24};
+    return presets;
+}
+
 void Toolbar::wheelEvent(QWheelEvent* event)
+{
+    forwardWheel(event, this);
+}
+
+bool Toolbar::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_slider && event->type() == QEvent::Wheel) {
+        forwardWheel(static_cast<QWheelEvent*>(event), m_slider);
+        return true;
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void Toolbar::forwardWheel(QWheelEvent* event, QWidget* source)
 {
     // Явная пересылка родителю: не зависим от того, распространяет ли Qt колесо вверх по иерархии.
     QWidget* parent = parentWidget();
@@ -121,7 +199,8 @@ void Toolbar::wheelEvent(QWheelEvent* event)
         event->ignore();
         return;
     }
-    QWheelEvent forwarded(event->position() + QPointF(pos()), event->globalPosition(), event->pixelDelta(),
+    const QPointF local = QPointF(source->mapTo(this, event->position().toPoint())) + pos();
+    QWheelEvent forwarded(local, event->globalPosition(), event->pixelDelta(),
                           event->angleDelta(), event->buttons(), event->modifiers(), event->phase(),
                           event->inverted(), event->source());
     QApplication::sendEvent(parent, &forwarded);
@@ -144,6 +223,12 @@ void Toolbar::setColor(const QColor& color)
 void Toolbar::setThickness(int thickness)
 {
     m_thickness->setText(QStringLiteral("%1px").arg(thickness));
+    const QVector<int>& presets = thicknessPresets();
+    for (int i = 0; i < m_presetButtons.size(); ++i)
+        m_presetButtons.at(i)->setChecked(presets.at(i) == thickness);
+    // Программное обновление не должно порождать thicknessChosen.
+    const QSignalBlocker blocker(m_slider);
+    m_slider->setValue(thickness);
 }
 
 void Toolbar::setUndoRedoEnabled(bool canUndo, bool canRedo)
@@ -152,21 +237,21 @@ void Toolbar::setUndoRedoEnabled(bool canUndo, bool canRedo)
     m_redo->setEnabled(canRedo);
 }
 
-QToolButton* Toolbar::addButton(const QString& objectName, const QString& text, const QString& toolTip)
+QToolButton* Toolbar::addButton(QHBoxLayout* row, const QString& objectName, const QString& text, const QString& toolTip)
 {
     auto* b = new QToolButton(this);
     b->setObjectName(objectName);
     b->setText(text);
     b->setToolTip(toolTip);
     b->setFocusPolicy(Qt::NoFocus);
-    m_layout->addWidget(b);
+    row->addWidget(b);
     return b;
 }
 
-void Toolbar::addSeparator()
+void Toolbar::addSeparator(QHBoxLayout* row)
 {
     auto* line = new QFrame(this);
     line->setFrameShape(QFrame::VLine);
     line->setStyleSheet(QStringLiteral("color: rgba(255, 255, 255, 60);"));
-    m_layout->addWidget(line);
+    row->addWidget(line);
 }

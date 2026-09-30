@@ -164,3 +164,21 @@ QPoint placeToolbar(const QRect& sel, QSize toolbar, const QVector<QRect>& scree
     const int x = std::max(screen.left(), std::min(sel.left(), screen.right() - toolbar.width() + 1));
     return QPoint(x, y);
 }
+
+QPoint sizeLabelPosition(const QRect& sel, QSize label, const QVector<QRect>& screens)
+{
+    const QPoint above(sel.left(), sel.top() - label.height() - 4);
+    for (const QRect& s : screens) {
+        if (s.contains(sel.topLeft())) {
+            if (s.contains(above))
+                return above;
+            break;
+        }
+    }
+    for (const QRect& s : screens) {
+        const QRect i = s.intersected(sel);
+        if (!i.isEmpty())
+            return i.topLeft() + QPoint(4, 4);
+    }
+    return sel.topLeft() + QPoint(4, 4);
+}

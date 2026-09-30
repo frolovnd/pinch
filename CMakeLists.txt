@@ -13,15 +13,19 @@ endif()
 include(CheckPIESupported)
 check_pie_supported()
 
+option(HS_WERROR "Считать предупреждения компилятора ошибками" ON)
 option(HS_SANITIZE "Собрать с AddressSanitizer и UndefinedBehaviorSanitizer" OFF)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Test)
 
-# Общие флаги для всех наших целей: предупреждения как ошибки и hardening.
+# Общие флаги для всех наших целей: предупреждения (как ошибки, если HS_WERROR) и hardening.
 add_library(hs_options INTERFACE)
 target_compile_options(hs_options INTERFACE
-    -Wall -Wextra -Wpedantic -Werror
+    -Wall -Wextra -Wpedantic
     -fstack-protector-strong -fstack-clash-protection -fcf-protection)
+if(HS_WERROR)
+    target_compile_options(hs_options INTERFACE -Werror)
+endif()
 target_link_options(hs_options INTERFACE
     -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack)
 if(HS_SANITIZE)
