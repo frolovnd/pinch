@@ -11,3 +11,4 @@ function(hs_add_test name)
 endfunction()
 
 hs_add_test(test_geometry)
+hs_add_test(test_capture)
