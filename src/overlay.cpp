@@ -91,9 +91,17 @@ void Overlay::setSelection(const QRect& selection)
 void Overlay::setTool(Tool tool)
 {
     commitText();
+    m_defaultToolApplied = true; // любой выбор (клавиша, панель, умолчание) отменяет дальнейший умолчательный выбор
     m_tool = tool;
     m_toolbar->setTool(tool);
     updateCursor(mapFromGlobal(QCursor::pos()));
+}
+
+void Overlay::applyDefaultTool()
+{
+    if (m_defaultToolApplied || m_selection.isEmpty())
+        return;
+    setTool(Tool::Pen);
 }
 
 void Overlay::setColor(const QColor& color)
@@ -514,6 +522,7 @@ void Overlay::mouseReleaseEvent(QMouseEvent* event)
             setSelection(screenAt(pos));
         else
             setSelection(rectFromPoints(m_pressPos, pos).intersected(bounds()));
+        applyDefaultTool(); // выделение зафиксировано отпусканием кнопки
     }
     else if (drag == Drag::Drawing)
         finishAnnotation();
@@ -579,6 +588,7 @@ void Overlay::keyPressEvent(QKeyEvent* event)
             return;
         case Qt::Key_A:
             setSelection(bounds());
+            applyDefaultTool();
             return;
         default:
             return;

@@ -109,6 +109,7 @@ private slots:
     {
         Env e;
         drag(&e.ov, {10, 10}, {110, 60});
+        QTest::keyClick(&e.ov, Qt::Key_V); // после выделения активен карандаш: для перемещения нужен V
         drag(&e.ov, {50, 30}, {70, 40});
         QCOMPARE(e.ov.selection(), QRect(30, 20, 101, 51));
     }
@@ -125,6 +126,7 @@ private slots:
     {
         Env e;
         drag(&e.ov, {10, 10}, {110, 60});
+        QTest::keyClick(&e.ov, Qt::Key_V); // с инструментом клик вне выделения ничего не делает
         drag(&e.ov, {200, 100}, {300, 200});
         QCOMPARE(e.ov.selection(), QRect(200, 100, 101, 101));
     }
@@ -143,6 +145,50 @@ private slots:
             QTest::keyClick(&e.ov, key);
             QCOMPARE(e.ov.tool(), tool);
         }
+    }
+
+    void penActiveAfterSelection()
+    {
+        Env e;
+        QCOMPARE(e.ov.tool(), Tool::None);
+        drag(&e.ov, {10, 10}, {110, 60});
+        QCOMPARE(e.ov.tool(), Tool::Pen);
+        QVERIFY(e.ov.toolbar()->findChild<QToolButton*>(QStringLiteral("tool-pen"))->isChecked());
+    }
+
+    void dragInsideDrawsAfterSelection()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        const QRect sel = e.ov.selection();
+        drag(&e.ov, {50, 50}, {100, 80});
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+        QCOMPARE(e.ov.document().annotations().at(0).tool, Tool::Pen);
+        QCOMPARE(e.ov.selection(), sel);
+    }
+
+    void penNotForcedAfterUserChoseNone()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {110, 60});
+        QTest::keyClick(&e.ov, Qt::Key_V);
+        drag(&e.ov, {200, 100}, {300, 200});
+        QCOMPARE(e.ov.selection(), QRect(200, 100, 101, 101));
+        QCOMPARE(e.ov.tool(), Tool::None);
+    }
+
+    void ctrlAAlsoSelectsPen()
+    {
+        Env e;
+        QTest::keyClick(&e.ov, Qt::Key_A, Qt::ControlModifier);
+        QCOMPARE(e.ov.tool(), Tool::Pen);
+    }
+
+    void clickScreenAlsoSelectsPen()
+    {
+        Env e;
+        click(&e.ov, {500, 100});
+        QCOMPARE(e.ov.tool(), Tool::Pen);
     }
 
     void toolKeysIgnoredWithoutSelection()
@@ -164,6 +210,8 @@ private slots:
     {
         Env e;
         drag(&e.ov, {10, 10}, {110, 60});
+        QTest::keyClick(&e.ov, Qt::Key_V); // сбросить умолчательный карандаш, чтобы проверка ловила отображение «З» → P
+        QCOMPARE(e.ov.tool(), Tool::None);
         rawKey(&e.ov, 0x0417, Qt::NoModifier, 33, QStringLiteral("з"));
         QCOMPARE(e.ov.tool(), Tool::Pen);
         rawKey(&e.ov, 0x0421, Qt::ControlModifier, 54, QString());

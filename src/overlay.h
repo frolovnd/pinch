@@ -46,6 +46,7 @@ private:
 
     void setSelection(const QRect& selection);
     void setTool(Tool tool);
+    void applyDefaultTool(); // первое непустое выделение: включить карандаш, если инструмент не выбирали
     void setColor(const QColor& color);
     void setThickness(int thickness);
     void undo();
@@ -76,6 +77,7 @@ private:
     QString m_saveDir;
     Style m_style;
     Tool m_tool = Tool::None;
+    bool m_defaultToolApplied = false; // умолчательный инструмент уже применён или пользователь выбрал свой
     Document m_document;
     QRect m_selection;
     QRect m_hintScreen; // монитор под курсором, пока выделения нет
