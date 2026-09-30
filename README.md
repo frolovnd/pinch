@@ -17,7 +17,7 @@ scripts/set-gnome-shortcut.sh   # Shift+Super+S → pinch
 Проверка под санитайзерами:
 
 ```bash
-cmake -S . -B build-asan -DHS_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
+cmake -S . -B build-asan -DPINCH_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-asan -j && ctest --test-dir build-asan --output-on-failure
 ```
 
@@ -49,7 +49,7 @@ cmake --build build -j
 ```
 
 Если более новый компилятор добавляет свои предупреждения, а сборка падает из-за `-Werror`,
-добавьте `-DHS_WERROR=OFF` (остальные предупреждения и hardening остаются).
+добавьте `-DPINCH_WERROR=OFF` (остальные предупреждения и hardening остаются).
 Приложение работает только в сеансе X11: Wayland пока не поддерживается.
 
 ## Модель угроз и ограничения
