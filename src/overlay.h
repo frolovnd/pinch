@@ -7,6 +7,7 @@
 #include "settings.h"
 
 #include <QImage>
+#include <optional>
 #include <QString>
 #include <QWidget>
 
@@ -24,6 +25,7 @@ public:
     Style style() const { return m_style; }
     const Document& document() const { return m_document; }
     Toolbar* toolbar() const { return m_toolbar; }
+    bool isEditingText() const { return m_textEditing; }
     QImage result() const; // выделенная область со всеми аннотациями
 
 signals:
@@ -58,6 +60,11 @@ private:
     void updateCursor(QPoint pos);
     QRect screenAt(QPoint pos) const;
     QRect bounds() const;
+    void beginAnnotation(QPoint pos);
+    void finishAnnotation();
+    void commitText();                    // завершить ввод текста; пустой текст отбрасывается
+    bool handleTextKey(QKeyEvent* event); // true — клавиша поглощена вводом текста
+    void paintCurrent(QPainter& painter) const;
 
     void paintSelectionFrame(QPainter& painter) const;
     void paintSizeLabel(QPainter& painter) const;
@@ -77,6 +84,8 @@ private:
     Handle m_handle = Handle::None;
     QPoint m_pressPos;
     QRect m_selectionAtPress;
+    std::optional<Annotation> m_current; // рисуемая аннотация или вводимый текст
+    bool m_textEditing = false;
 
     mutable QImage m_cache; // render() для текущего выделения и документа
     mutable bool m_cacheValid = false;

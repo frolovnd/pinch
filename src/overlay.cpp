@@ -89,6 +89,7 @@ void Overlay::setSelection(const QRect& selection)
 
 void Overlay::setTool(Tool tool)
 {
+    commitText();
     m_tool = tool;
     m_toolbar->setTool(tool);
     updateCursor(mapFromGlobal(QCursor::pos()));
@@ -98,22 +99,30 @@ void Overlay::setColor(const QColor& color)
 {
     m_style.color = color;
     m_toolbar->setColor(color);
+    if (m_textEditing)
+        m_current->style.color = color;
+    update();
 }
 
 void Overlay::setThickness(int thickness)
 {
     m_style.thickness = qBound(kMinThickness, thickness, kMaxThickness);
     m_toolbar->setThickness(m_style.thickness);
+    if (m_textEditing)
+        m_current->style.thickness = m_style.thickness;
+    update();
 }
 
 void Overlay::undo()
 {
+    commitText();
     if (m_document.undo())
         documentChanged();
 }
 
 void Overlay::redo()
 {
+    commitText();
     if (m_document.redo())
         documentChanged();
 }
@@ -189,6 +198,146 @@ QRect Overlay::bounds() const
     return m_capture.image.rect();
 }
 
+// ---- Рисование ----
+
+void Overlay::beginAnnotation(QPoint pos)
+{
+    Annotation a;
+    a.tool = m_tool;
+    a.style = m_style;
+    a.points = {pos};
+    switch (m_tool) {
+    case Tool::Counter:
+        m_document.add(a);
+        documentChanged();
+        return;
+    case Tool::Text:
+        m_current = a;
+        m_textEditing = true;
+        update();
+        return;
+    case Tool::Line:
+    case Tool::Arrow:
+    case Tool::Rect:
+    case Tool::Ellipse:
+    case Tool::Pixelate:
+        a.points.append(pos); // [начало, конец]
+        break;
+    case Tool::Pen:
+    case Tool::Marker:
+    case Tool::None:
+        break;
+    }
+    m_current = a;
+    m_drag = Drag::Drawing;
+    update();
+}
+
+void Overlay::finishAnnotation()
+{
+    if (!m_current)
+        return;
+    const Annotation a = *m_current;
+    m_current.reset();
+
+    bool valid = false;
+    switch (a.tool) {
+    case Tool::Pen:
+        valid = !a.points.isEmpty();
+        break;
+    case Tool::Marker:
+        valid = a.points.size() >= 2;
+        break;
+    case Tool::Line:
+    case Tool::Arrow:
+        valid = a.points.at(0) != a.points.at(1);
+        break;
+    case Tool::Rect:
+    case Tool::Ellipse:
+    case Tool::Pixelate: {
+        const QRect r = rectFromPoints(a.points.at(0), a.points.at(1));
+        valid = r.width() >= 2 && r.height() >= 2;
+        break;
+    }
+    case Tool::None:
+    case Tool::Text:
+    case Tool::Counter:
+        break;
+    }
+    if (valid) {
+        m_document.add(a);
+        documentChanged();
+    } else {
+        update();
+    }
+}
+
+void Overlay::commitText()
+{
+    if (!m_textEditing)
+        return;
+    m_textEditing = false;
+    const Annotation a = *m_current;
+    m_current.reset();
+    if (!a.text.isEmpty()) {
+        m_document.add(a);
+        documentChanged();
+    } else {
+        update();
+    }
+}
+
+bool Overlay::handleTextKey(QKeyEvent* event)
+{
+    if (!m_textEditing)
+        return false;
+    if (event->key() == Qt::Key_Escape) {
+        commitText();
+        return true;
+    }
+    if (event->modifiers().testFlag(Qt::ControlModifier)) {
+        commitText();
+        return false; // сочетание обработает keyPressEvent
+    }
+    switch (event->key()) {
+    case Qt::Key_Backspace:
+        m_current->text.chop(1);
+        break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        m_current->text += QLatin1Char('\n');
+        break;
+    default: {
+        const QString text = event->text();
+        if (!text.isEmpty() && text.at(0).isPrint())
+            m_current->text += text;
+        break;
+    }
+    }
+    update();
+    return true;
+}
+
+void Overlay::paintCurrent(QPainter& painter) const
+{
+    if (!m_current)
+        return;
+    painter.save();
+    painter.setClipRect(m_selection);
+    drawAnnotation(painter, *m_current, m_document.nextCounterNumber());
+    if (m_textEditing) {
+        // Курсор в конце последней строки, по тем же метрикам, что и drawAnnotation.
+        const QFontMetrics metrics(textFont(m_current->style.thickness));
+        const QStringList lines = m_current->text.split(QLatin1Char('\n'));
+        const QPoint origin = m_current->points.constFirst();
+        const int x = origin.x() + metrics.horizontalAdvance(lines.constLast());
+        const int y = origin.y() + int(lines.size() - 1) * metrics.lineSpacing();
+        painter.setPen(QPen(m_current->style.color, 2));
+        painter.drawLine(x, y, x, y + metrics.height());
+    }
+    painter.restore();
+}
+
 // ---- Вывод ----
 
 void Overlay::closeOverlay()
@@ -199,6 +348,7 @@ void Overlay::closeOverlay()
 
 void Overlay::copyResult()
 {
+    commitText();
     if (m_selection.isEmpty())
         return;
     const QImage image = result();
@@ -208,6 +358,7 @@ void Overlay::copyResult()
 
 void Overlay::saveQuick()
 {
+    commitText();
     if (m_selection.isEmpty())
         return;
     QString path;
@@ -223,6 +374,7 @@ void Overlay::saveQuick()
 
 void Overlay::saveAs()
 {
+    commitText();
     if (m_selection.isEmpty())
         return;
     const QImage image = result();
@@ -273,6 +425,7 @@ void Overlay::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() != Qt::LeftButton)
         return;
+    commitText(); // клик в любом месте завершает вводимый текст
     const QPoint pos = event->position().toPoint();
     m_pressPos = pos;
     m_selectionAtPress = m_selection;
@@ -300,6 +453,7 @@ void Overlay::mousePressEvent(QMouseEvent* event)
         m_handle = Handle::Move;
         return;
     }
+    beginAnnotation(pos);
 }
 
 void Overlay::mouseMoveEvent(QMouseEvent* event)
@@ -323,8 +477,24 @@ void Overlay::mouseMoveEvent(QMouseEvent* event)
     case Drag::Resizing:
         setSelection(applyHandleDrag(m_selectionAtPress, m_handle, pos - m_pressPos, bounds()));
         return;
-    case Drag::Drawing:
+    case Drag::Drawing: {
+        if (!m_current)
+            return;
+        Annotation& a = *m_current;
+        if (a.tool == Tool::Pen || a.tool == Tool::Marker) {
+            if (pos != a.points.constLast())
+                a.points.append(pos);
+        } else {
+            QPoint end = pos;
+            if (event->modifiers().testFlag(Qt::ShiftModifier)) {
+                const bool line = a.tool == Tool::Line || a.tool == Tool::Arrow;
+                end = line ? snapLine45(a.points.at(0), pos) : snapSquare(a.points.at(0), pos);
+            }
+            a.points[1] = end;
+        }
+        update();
         return;
+    }
     }
 }
 
@@ -344,6 +514,8 @@ void Overlay::mouseReleaseEvent(QMouseEvent* event)
         else
             setSelection(rectFromPoints(m_pressPos, pos).intersected(bounds()));
     }
+    else if (drag == Drag::Drawing)
+        finishAnnotation();
     updateToolbar();
     updateCursor(pos);
 }
@@ -358,6 +530,8 @@ void Overlay::wheelEvent(QWheelEvent* event)
 
 void Overlay::keyPressEvent(QKeyEvent* event)
 {
+    if (handleTextKey(event))
+        return;
     const Qt::KeyboardModifiers mods = event->modifiers()
         & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
     const bool ctrl = mods.testFlag(Qt::ControlModifier);
@@ -432,6 +606,7 @@ void Overlay::paintEvent(QPaintEvent*)
         m_cacheValid = true;
     }
     painter.drawImage(m_selection.topLeft(), m_cache);
+    paintCurrent(painter);
     paintSelectionFrame(painter);
     paintSizeLabel(painter);
 }

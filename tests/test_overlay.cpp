@@ -236,6 +236,209 @@ private slots:
             wheel(-120);
         QCOMPARE(e.ov.style().thickness, 1);
     }
+
+    void drawRectAddsAnnotation()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_R);
+        drag(&e.ov, {50, 50}, {150, 120});
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+        const Annotation& a = e.ov.document().annotations().at(0);
+        QCOMPARE(a.tool, Tool::Rect);
+        QCOMPARE(a.points, (QVector<QPoint>{{50, 50}, {150, 120}}));
+        QCOMPARE(a.style.color, Settings().color);
+        QCOMPARE(e.ov.result().pixel(40, 75), Settings().color.rgb()); // левая сторона x=50
+        QVERIFY(e.ov.toolbar()->findChild<QToolButton*>(QStringLiteral("undo"))->isEnabled());
+    }
+
+    void shiftMakesSquare()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_R);
+        drag(&e.ov, {50, 50}, {150, 120}, Qt::ShiftModifier);
+        QCOMPARE(e.ov.document().annotations().at(0).points.at(1), QPoint(150, 150));
+    }
+
+    void shiftSnapsArrow()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_A);
+        drag(&e.ov, {50, 50}, {150, 58}, Qt::ShiftModifier);
+        QCOMPARE(e.ov.document().annotations().at(0).points.at(1), QPoint(150, 50));
+    }
+
+    void tinyShapesIgnored()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_R);
+        click(&e.ov, {50, 50});
+        QTest::keyClick(&e.ov, Qt::Key_M);
+        click(&e.ov, {60, 60});
+        QTest::keyClick(&e.ov, Qt::Key_L);
+        click(&e.ov, {70, 70});
+        QVERIFY(e.ov.document().annotations().isEmpty());
+    }
+
+    void penStroke()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_P);
+        drag(&e.ov, {50, 50}, {100, 80});
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+        QCOMPARE(e.ov.document().annotations().at(0).tool, Tool::Pen);
+        QCOMPARE(e.ov.document().annotations().at(0).points.size(), 3);
+    }
+
+    void drawingOutsideSelectionIgnored()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_R);
+        drag(&e.ov, {350, 250}, {380, 280});
+        QVERIFY(e.ov.document().annotations().isEmpty());
+        QCOMPARE(e.ov.selection(), QRect(10, 10, 291, 191));
+    }
+
+    void undoRedoKeys()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_R);
+        drag(&e.ov, {50, 50}, {150, 120});
+        QTest::keyClick(&e.ov, Qt::Key_Z, Qt::ControlModifier);
+        QVERIFY(e.ov.document().annotations().isEmpty());
+        QTest::keyClick(&e.ov, Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier);
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+        QTest::keyClick(&e.ov, Qt::Key_Z, Qt::ControlModifier);
+        QTest::keyClick(&e.ov, Qt::Key_Y, Qt::ControlModifier);
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+    }
+
+    void counterClicks()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_N);
+        click(&e.ov, {60, 60});
+        click(&e.ov, {80, 80});
+        QCOMPARE(e.ov.document().annotations().size(), 2);
+        QCOMPARE(e.ov.document().annotations().at(1).tool, Tool::Counter);
+        QCOMPARE(e.ov.document().nextCounterNumber(), 3);
+    }
+
+    void textEscapeKeepsOverlay()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        QVERIFY(e.ov.isEditingText());
+        QTest::keyClicks(&e.ov, QStringLiteral("ab"));
+        QTest::keyClick(&e.ov, Qt::Key_Backspace);
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QVERIFY(!e.ov.isEditingText());
+        QVERIFY(!e.finished);
+        QVERIFY(e.ov.isVisible());
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+        QCOMPARE(e.ov.document().annotations().at(0).text, QStringLiteral("a"));
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QVERIFY(e.finished);
+    }
+
+    void textEnterIsNewline()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        QTest::keyClicks(&e.ov, QStringLiteral("a"));
+        QTest::keyClick(&e.ov, Qt::Key_Return);
+        QTest::keyClicks(&e.ov, QStringLiteral("b"));
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QVERIFY(!e.wasCopied);
+        QCOMPARE(e.ov.document().annotations().at(0).text, QStringLiteral("a\nb"));
+    }
+
+    void textLettersDontSwitchTool()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        QTest::keyClicks(&e.ov, QStringLiteral("pmv"));
+        QCOMPARE(e.ov.tool(), Tool::Text);
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QCOMPARE(e.ov.document().annotations().at(0).text, QStringLiteral("pmv"));
+    }
+
+    void textCyrillic()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        rawKey(&e.ov, 0x0416, Qt::NoModifier, 47, QStringLiteral("ж"));
+        rawKey(&e.ov, 0x0417, Qt::NoModifier, 33, QStringLiteral("з")); // физическая P — не инструмент
+        QCOMPARE(e.ov.tool(), Tool::Text);
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QCOMPARE(e.ov.document().annotations().at(0).text, QStringLiteral("жз"));
+    }
+
+    void emptyTextDiscarded()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QVERIFY(e.ov.document().annotations().isEmpty());
+        QVERIFY(!e.finished);
+    }
+
+    void clickCommitsTextAndStartsNew()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        QTest::keyClicks(&e.ov, QStringLiteral("a"));
+        click(&e.ov, {60, 120});
+        QVERIFY(e.ov.isEditingText());
+        QTest::keyClicks(&e.ov, QStringLiteral("b"));
+        QTest::keyClick(&e.ov, Qt::Key_Escape);
+        QCOMPARE(e.ov.document().annotations().size(), 2);
+        QCOMPARE(e.ov.document().annotations().at(1).points.at(0), QPoint(60, 120));
+    }
+
+    void ctrlCCommitsText()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        QTest::keyClicks(&e.ov, QStringLiteral("hi"));
+        QTest::keyClick(&e.ov, Qt::Key_C, Qt::ControlModifier);
+        QVERIFY(e.wasCopied);
+        QCOMPARE(e.ov.document().annotations().at(0).text, QStringLiteral("hi"));
+    }
+
+    void toolSwitchCommitsText()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_T);
+        click(&e.ov, {60, 60});
+        QTest::keyClicks(&e.ov, QStringLiteral("x"));
+        e.ov.toolbar()->findChild<QToolButton*>(QStringLiteral("tool-rect"))->click();
+        QVERIFY(!e.ov.isEditingText());
+        QCOMPARE(e.ov.tool(), Tool::Rect);
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+    }
 };
 
 QTEST_MAIN(TestOverlay)
