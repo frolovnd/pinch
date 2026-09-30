@@ -1,3 +1,4 @@
+#include "appicon.h"
 #include "capture.h"
 #include "instancelock.h"
 #include "output.h"
@@ -43,6 +44,8 @@ int main(int argc, char** argv)
         QApplication::installTranslator(&qtTranslator);
     QApplication::setApplicationName(QStringLiteral("pinch"));
     QApplication::setApplicationVersion(QStringLiteral(PINCH_VERSION));
+    // Иконка окна по умолчанию: её получают и стандартные диалоги (Сохранить как, сообщения).
+    QApplication::setWindowIcon(appIcon());
     // После Ctrl+C окно закрыто, но процесс должен жить, пока владеет буфером обмена.
     QApplication::setQuitOnLastWindowClosed(false);
 

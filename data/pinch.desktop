@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=pinch
+GenericName=Скриншот
+Comment=Скриншот области экрана с рисованием
+Exec=pinch
+Icon=pinch
+Terminal=false
+Categories=Utility;Graphics;
+Keywords=screenshot;скриншот;снимок;pinch;
+StartupNotify=false

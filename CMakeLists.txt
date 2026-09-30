@@ -50,7 +50,14 @@ add_library(pinch_core STATIC
     src/toolbar.h src/toolbar.cpp
     src/keys.h src/keys.cpp
     src/overlay.h src/overlay.cpp
+    src/appicon.h src/appicon.cpp
 )
+# Иконки окна встроены в бинарь (для диалогов и заголовков); установка hicolor — ниже.
+qt_add_resources(pinch_core "icons" PREFIX "/icons" BASE "data/icons/hicolor" FILES
+    data/icons/hicolor/32x32/apps/pinch.png
+    data/icons/hicolor/64x64/apps/pinch.png
+    data/icons/hicolor/128x128/apps/pinch.png
+    data/icons/hicolor/256x256/apps/pinch.png)
 target_include_directories(pinch_core PUBLIC src)
 target_link_libraries(pinch_core PUBLIC Qt6::Widgets pinch_options)
 
@@ -58,6 +65,8 @@ add_executable(pinch src/main.cpp)
 target_link_libraries(pinch PRIVATE pinch_core)
 target_compile_definitions(pinch PRIVATE PINCH_VERSION="${PROJECT_VERSION}")
 install(TARGETS pinch DESTINATION bin)
+install(DIRECTORY data/icons/hicolor DESTINATION share/icons)
+install(FILES data/pinch.desktop DESTINATION share/applications)
 
 enable_testing()
 add_subdirectory(tests)

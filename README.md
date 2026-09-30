@@ -14,6 +14,8 @@ cmake --install build --prefix ~/.local
 scripts/set-gnome-shortcut.sh   # Shift+Super+S → pinch
 ```
 
+`cmake --install build --prefix ~/.local` ставит также иконку (`~/.local/share/icons/hicolor/…/apps/pinch.png`) и пункт меню (`~/.local/share/applications/pinch.desktop`). Иконки в репозитории уже отрисованы; `scripts/render-icons.sh` пересобирает их из `data/icons/pinch-source.png` (нужен ImageMagick, только для разработчика).
+
 Проверка под санитайзерами:
 
 ```bash
