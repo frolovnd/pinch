@@ -43,6 +43,7 @@ add_library(hs_core STATIC
     src/instancelock.h src/instancelock.cpp
     src/output.h src/output.cpp
     src/settings.h src/settings.cpp
+    src/toolbar.h src/toolbar.cpp
 )
 target_include_directories(hs_core PUBLIC src)
 target_link_libraries(hs_core PUBLIC Qt6::Widgets hs_options)
