@@ -44,6 +44,8 @@ add_library(hs_core STATIC
     src/output.h src/output.cpp
     src/settings.h src/settings.cpp
     src/toolbar.h src/toolbar.cpp
+    src/keys.h src/keys.cpp
+    src/overlay.h src/overlay.cpp
 )
 target_include_directories(hs_core PUBLIC src)
 target_link_libraries(hs_core PUBLIC Qt6::Widgets hs_options)
