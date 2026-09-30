@@ -2,7 +2,7 @@
 
 #include <QColor>
 
-// Цвет и толщина между запусками: ~/.config/hot-screenshot/hot-screenshot.conf.
+// Цвет и толщина между запусками: ~/.config/pinch/pinch.conf.
 struct Settings {
     QColor color = QColor(0xE5, 0x39, 0x35);
     int thickness = 4;

@@ -52,7 +52,7 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
 {
     const QFileInfo info(path);
     const QByteArray target = QFile::encodeName(info.absoluteFilePath());
-    QByteArray temp = QFile::encodeName(info.absolutePath() + QStringLiteral("/.hot-screenshot-XXXXXX"));
+    QByteArray temp = QFile::encodeName(info.absolutePath() + QStringLiteral("/.pinch-XXXXXX"));
 
     // mkostemp создаёт файл с O_CREAT | O_EXCL и правами 0600.
     const int fd = ::mkostemp(temp.data(), O_CLOEXEC);

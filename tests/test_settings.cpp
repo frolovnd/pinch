@@ -59,7 +59,7 @@ private slots:
     }
 
 private:
-    static QSettings raw() { return QSettings(QStringLiteral("hot-screenshot"), QStringLiteral("hot-screenshot")); }
+    static QSettings raw() { return QSettings(QStringLiteral("pinch"), QStringLiteral("pinch")); }
     QTemporaryDir m_dir;
 };
 

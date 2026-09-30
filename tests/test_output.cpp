@@ -28,7 +28,7 @@ void makeSymlink(const QString& target, const QString& link)
 
 QStringList leftovers(const QString& dir)
 {
-    return QDir(dir).entryList({QStringLiteral(".hot-screenshot-*")}, QDir::Files | QDir::Hidden);
+    return QDir(dir).entryList({QStringLiteral(".pinch-*")}, QDir::Files | QDir::Hidden);
 }
 
 const QDateTime kNow(QDate(2026, 9, 30), QTime(14, 5, 33));

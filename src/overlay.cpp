@@ -424,7 +424,7 @@ void Overlay::cancel()
 void Overlay::showError(const QString& text)
 {
     closeOverlay();
-    QMessageBox::critical(nullptr, QStringLiteral("hot-screenshot"), text);
+    QMessageBox::critical(nullptr, QStringLiteral("pinch"), text);
     start();
 }
 

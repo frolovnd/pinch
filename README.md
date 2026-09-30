@@ -1,4 +1,4 @@
-# hot-screenshot
+# pinch
 
 Скриншот области экрана с рисованием для Ubuntu (X11). По образцу Flameshot, но с маленькой
 кодовой базой, которую можно прочитать целиком.
@@ -11,7 +11,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 cmake --install build --prefix ~/.local
-scripts/set-gnome-shortcut.sh   # Shift+Super+S → hot-screenshot
+scripts/set-gnome-shortcut.sh   # Shift+Super+S → pinch
 ```
 
 Проверка под санитайзерами:
@@ -58,7 +58,7 @@ cmake --build build -j
   оно говорит только с X-сервером. Мост доступности Qt (AT-SPI) при показе окна всё же может открыть
   клиентское соединение с сессионной шиной пользователя. Это проверяется вручную через `strace` (см. ниже).
   Платформенная тема GTK и соединение с менеджером сессии отключены в `main()`.
-- Настройки лежат в `~/.config/hot-screenshot/hot-screenshot.conf`. Диалог «Сохранить как» (собственный диалог Qt)
+- Настройки лежат в `~/.config/pinch/pinch.conf`. Диалог «Сохранить как» (собственный диалог Qt)
   хранит последний каталог и историю в `~/.config/QtProject.conf`.
 - Файлы пишутся атомарно: временный файл `0600` в каталоге назначения, затем `renameat2`.
   Путь назначения не открывается напрямую, поэтому подложенный симлинк не перенаправит запись.
@@ -75,13 +75,13 @@ cmake --build build -j
 Сетевую и IPC-активность проверяют из терминала при настоящем запуске:
 
 ```bash
-HS_ALLOW_TRACE=1 strace -f -e trace=connect ~/.local/bin/hot-screenshot 2>&1 | grep 'connect('
+PINCH_ALLOW_TRACE=1 strace -f -e trace=connect ~/.local/bin/pinch 2>&1 | grep 'connect('
 ```
 
 По умолчанию процесс помечен «недампируемым» (`PR_SET_DUMPABLE=0`: снимок не попадёт в core-дамп и
 не читается через `ptrace`), поэтому `strace` не может к нему подключиться и не читает строки.
-Переменная `HS_ALLOW_TRACE=1` (именно значение `1`) отключает эту защиту на время проверки: приложение запускают сразу под `strace`.
+Переменная `PINCH_ALLOW_TRACE=1` (именно значение `1`) отключает эту защиту на время проверки: приложение запускают сразу под `strace`.
 Подключение к уже запущенному процессу (`strace -p`) не подходит: при `ptrace_scope=1` (Ubuntu) без `sudo` оно невозможно
-для процесса, не являющегося потомком, а с `sudo` root подключается независимо от `HS_ALLOW_TRACE`.
+для процесса, не являющегося потомком, а с `sudo` root подключается независимо от `PINCH_ALLOW_TRACE`.
 
 Допустимы только сокет X11 и, самое большее, сессионная шина / шина AT-SPI.

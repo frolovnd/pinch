@@ -5,7 +5,7 @@
 namespace {
 QSettings store()
 {
-    return QSettings(QStringLiteral("hot-screenshot"), QStringLiteral("hot-screenshot"));
+    return QSettings(QStringLiteral("pinch"), QStringLiteral("pinch"));
 }
 
 // Принимает только «#rrggbb».

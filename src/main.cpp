@@ -26,8 +26,8 @@ void saveStyle(const Overlay& overlay)
 int main(int argc, char** argv)
 {
     // Снимок в памяти не должен попасть в core-дамп или читаться через ptrace другими процессами пользователя.
-    // HS_ALLOW_TRACE=1 (ровно «1») — осознанное исключение пользователя для запуска под strace (иначе strace не читает строки).
-    if (qgetenv("HS_ALLOW_TRACE") != "1" && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0)
+    // PINCH_ALLOW_TRACE=1 (ровно «1») — осознанное исключение пользователя для запуска под strace (иначе strace не читает строки).
+    if (qgetenv("PINCH_ALLOW_TRACE") != "1" && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0)
         qWarning("не удалось отключить дампы памяти (PR_SET_DUMPABLE)");
     // Без платформенной темы Qt не подгружает весь стек GTK/ATK и не ходит за настройками темы.
     QApplication::setDesktopSettingsAware(false);
@@ -41,8 +41,8 @@ int main(int argc, char** argv)
     QTranslator qtTranslator;
     if (qtTranslator.load(QStringLiteral("qtbase_ru"), QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
         QApplication::installTranslator(&qtTranslator);
-    QApplication::setApplicationName(QStringLiteral("hot-screenshot"));
-    QApplication::setApplicationVersion(QStringLiteral(HS_VERSION));
+    QApplication::setApplicationName(QStringLiteral("pinch"));
+    QApplication::setApplicationVersion(QStringLiteral(PINCH_VERSION));
     // После Ctrl+C окно закрыто, но процесс должен жить, пока владеет буфером обмена.
     QApplication::setQuitOnLastWindowClosed(false);
 

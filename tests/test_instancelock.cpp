@@ -49,7 +49,7 @@ private slots:
     {
         const QByteArray saved = qgetenv("XDG_RUNTIME_DIR");
         qputenv("XDG_RUNTIME_DIR", "/run/user/4242");
-        QCOMPARE(defaultLockPath(), QStringLiteral("/run/user/4242/hot-screenshot.lock"));
+        QCOMPARE(defaultLockPath(), QStringLiteral("/run/user/4242/pinch.lock"));
         qunsetenv("XDG_RUNTIME_DIR");
         QVERIFY(defaultLockPath().isEmpty());
         if (!saved.isEmpty())

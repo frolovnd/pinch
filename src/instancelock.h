@@ -22,6 +22,6 @@ private:
     int m_fd = -1;
 };
 
-// $XDG_RUNTIME_DIR/hot-screenshot.lock (каталог 0700, только для пользователя);
+// $XDG_RUNTIME_DIR/pinch.lock (каталог 0700, только для пользователя);
 // пустая строка, если переменная не задана.
 QString defaultLockPath();

@@ -41,5 +41,5 @@ QString defaultLockPath()
     const QByteArray dir = qgetenv("XDG_RUNTIME_DIR");
     if (dir.isEmpty())
         return {};
-    return QFile::decodeName(dir) + QStringLiteral("/hot-screenshot.lock");
+    return QFile::decodeName(dir) + QStringLiteral("/pinch.lock");
 }

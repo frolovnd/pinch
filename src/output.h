@@ -21,7 +21,7 @@ enum class WriteMode {
 
 // Атомарная запись: временный файл 0600 в том же каталоге (O_EXCL), fsync, затем renameat2.
 // Путь назначения никогда не открывается напрямую, поэтому запись не может пойти «сквозь» симлинк.
-// После вызова временных файлов .hot-screenshot-* не остаётся.
+// После вызова временных файлов .pinch-* не остаётся.
 WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMode mode);
 
 // «2026-09-30_14-05-33.png»; при attempt > 0 — «2026-09-30_14-05-33_<attempt>.png».

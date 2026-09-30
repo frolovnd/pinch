@@ -1,4 +1,6 @@
-# hot-screenshot — спецификация
+# pinch — спецификация
+
+Прежнее рабочее название — hot-screenshot.
 
 Дата: 2026-09-30
 
@@ -50,7 +52,7 @@ Wayland; HiDPI (масштаб ≠ 1); трей и фоновый демон; с
 
 ## 6. Модули
 
-Всё, кроме `main.cpp`, собирается в статическую библиотеку `hs_core`, с которой линкуются приложение и тесты. Комментарии в коде — на русском, идентификаторы — на английском.
+Всё, кроме `main.cpp`, собирается в статическую библиотеку `pinch_core`, с которой линкуются приложение и тесты. Комментарии в коде — на русском, идентификаторы — на английском.
 
 ### `capture.{h,cpp}` — захват экрана
 ```cpp
@@ -73,7 +75,7 @@ public:
     void release();                         // закрыть fd; идемпотентно
     ~InstanceLock();                        // release()
 };
-QString defaultLockPath(); // $XDG_RUNTIME_DIR/hot-screenshot.lock; пустая строка, если переменная не задана
+QString defaultLockPath(); // $XDG_RUNTIME_DIR/pinch.lock; пустая строка, если переменная не задана
 ```
 `Busy` → выход с кодом 0. `Error` или пустой путь → предупреждение в stderr, работаем без блокировки.
 
@@ -157,10 +159,10 @@ QString screenshotsDir();                     // QStandardPaths::PicturesLocatio
 void copyToClipboard(const QImage& image);    // QGuiApplication::clipboard()->setImage
 ```
 `writeFileAtomic`:
-1. `mkostemp("<каталог>/.hot-screenshot-XXXXXX", O_CLOEXEC)` — создаётся с `O_EXCL`, права `0600`.
+1. `mkostemp("<каталог>/.pinch-XXXXXX", O_CLOEXEC)` — создаётся с `O_EXCL`, права `0600`.
 2. Записать все байты (цикл по частичной записи и `EINTR`), `fsync`, `close`.
 3. `NoReplace` → `renameat2(..., RENAME_NOREPLACE)`: при `EEXIST` — `Exists`. `Replace` → `rename()`: подменяется запись в каталоге; если там был симлинк, заменяется сам симлинк, а его цель не трогается.
-4. При любой ошибке временный файл удаляется. После вызова в каталоге не остаётся `.hot-screenshot-*`.
+4. При любой ошибке временный файл удаляется. После вызова в каталоге не остаётся `.pinch-*`.
 
 `quickSave`: пробует `attempt = 0..99` в режиме `NoReplace`, пока не получит не-`Exists`.
 
@@ -168,7 +170,7 @@ void copyToClipboard(const QImage& image);    // QGuiApplication::clipboard()->s
 ```cpp
 struct Settings {
     QColor color = QColor("#E53935"); int thickness = 4;
-    static Settings load();  // QSettings("hot-screenshot","hot-screenshot"); невалидное → по умолчанию, thickness прижимается к 1..40
+    static Settings load();  // QSettings("pinch","pinch"); невалидное → по умолчанию, thickness прижимается к 1..40
     void save() const;
 };
 ```
@@ -261,14 +263,14 @@ signals:
 ## 7. Сборка
 
 - CMake ≥ 3.16, C++17, `CMAKE_AUTOMOC ON`, `find_package(Qt6 REQUIRED COMPONENTS Widgets Test)`.
-- Цели: `hs_core` (статическая библиотека), `hot-screenshot` (приложение), тесты `test_*` через `add_test`.
+- Цели: `pinch_core` (статическая библиотека), `pinch` (приложение), тесты `test_*` через `add_test`.
 - Предупреждения для наших целей: `-Wall -Wextra -Wpedantic -Werror`.
 - Hardening:
   - компиляция: `-O2 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection -fcf-protection`, PIE;
   - линковка: `-Wl,-z,relro,-z,now,-z,noexecstack`.
-- Опция `HS_SANITIZE=ON` → `-fsanitize=address,undefined -fno-omit-frame-pointer` (без `_FORTIFY_SOURCE`).
+- Опция `PINCH_SANITIZE=ON` → `-fsanitize=address,undefined -fno-omit-frame-pointer` (без `_FORTIFY_SOURCE`).
 - Тесты запускаются с `QT_QPA_PLATFORM=offscreen` (задаётся свойством `ENVIRONMENT` у `add_test`).
-- `install(TARGETS hot-screenshot DESTINATION bin)`; префикс задаётся при установке (раздел 10).
+- `install(TARGETS pinch DESTINATION bin)`; префикс задаётся при установке (раздел 10).
 
 Структура:
 ```
@@ -287,11 +289,11 @@ docs/superpowers/{specs,plans}/
 - **geometry** — `rectFromPoints` в любом направлении; приоритет углов в `hitTestHandle`; ресайз за каждую ручку, перетягивание через противоположную сторону, прижатие к границам; `snapLine45` и `snapSquare` во всех квадрантах; `placeToolbar`: под, над, внутри, прижатие по x, выбор монитора.
 - **document** — add/undo/redo, очистка redo при add, `nextCounterNumber` после undo.
 - **renderer** — `render` обрезает по выделению и учитывает смещение; Rect рисует цвет на контуре и не трогает середину; Pixelate делает блоки однотонными и пикселизует ранее нарисованное; нумерация Counter; Marker полупрозрачный.
-- **output** — PNG декодируется обратно в то же изображение; `NoReplace` на существующем файле → `Exists`, файл не изменён; `NoReplace` на висячем симлинке → `Exists`, цель не создана; `Replace` на симлинке → на месте симлинка обычный файл, цель не тронута; права `0600`; нет мусора `.hot-screenshot-*`; `quickSave` при коллизии даёт `_1`.
+- **output** — PNG декодируется обратно в то же изображение; `NoReplace` на существующем файле → `Exists`, файл не изменён; `NoReplace` на висячем симлинке → `Exists`, цель не создана; `Replace` на симлинке → на месте симлинка обычный файл, цель не тронута; права `0600`; нет мусора `.pinch-*`; `quickSave` при коллизии даёт `_1`.
 - **settings** — круговое сохранение и загрузка во временном `XDG_CONFIG_HOME`; невалидные значения → по умолчанию или прижатые.
 - **overlay** (offscreen, синтетический `Capture`) — выделение перетаскиванием и кликом (весь монитор); перемещение и ресайз; клавиши инструментов; рисование Rect даёт аннотацию; Esc в тексте не закрывает, второй Esc закрывает (`finished`); `Ctrl+C` эмитит `copyRequested` с изображением размера выделения; Ctrl+Z/Ctrl+Shift+Z.
 
-Весь набор должен проходить в обычной сборке и в сборке `HS_SANITIZE=ON`.
+Весь набор должен проходить в обычной сборке и в сборке `PINCH_SANITIZE=ON`.
 
 ## 9. Ручная проверка (на реальном X11)
 
@@ -300,16 +302,16 @@ docs/superpowers/{specs,plans}/
 3. Клавиатура работает сразу (инструменты, Esc) без клика по окну.
 4. Все 9 инструментов, цвета, колесо, Shift-привязка, undo/redo.
 5. Текст на русском и английском.
-6. Ctrl+C → вставка в Telegram/браузер/GIMP работает. Процесс висит, пока в буфер не скопировано что-то другое, затем завершается (`pgrep hot-screenshot`).
+6. Ctrl+C → вставка в Telegram/браузер/GIMP работает. Процесс висит, пока в буфер не скопировано что-то другое, затем завершается (`pgrep pinch`).
 7. Ctrl+S → файл в `~/Pictures/Screenshots` с правами `0600`; Ctrl+Shift+S → диалог виден поверх, отмена возвращает в оверлей.
 8. Повторное нажатие хоткея при открытом оверлее ничего не делает.
 9. От нажатия до оверлея субъективно ≤ 0,3 с.
-10. Сетевая активность: запуск из терминала под `HS_ALLOW_TRACE=1 strace -f -e trace=connect hot-screenshot` (без `1` процесс недампируем и `strace` не читает строки; `strace -p` при `ptrace_scope=1` требует `sudo`, а root подключается независимо от `HS_ALLOW_TRACE`) — только сокет X11 и не более сессионной шины / шины AT-SPI.
+10. Сетевая активность: запуск из терминала под `PINCH_ALLOW_TRACE=1 strace -f -e trace=connect pinch` (без `1` процесс недампируем и `strace` не читает строки; `strace -p` при `ptrace_scope=1` требует `sudo`, а root подключается независимо от `PINCH_ALLOW_TRACE`) — только сокет X11 и не более сессионной шины / шины AT-SPI.
 
 ## 10. Установка и горячая клавиша
 
-- `cmake --install build --prefix ~/.local` → `~/.local/bin/hot-screenshot`.
-- `scripts/set-gnome-shortcut.sh [путь_к_бинарю]` переназначает существующий ярлык `custom0` («gnome-screenshot», `Shift+Super+S`) на hot-screenshot: имя «hot-screenshot», команда — абсолютный путь. Перед изменением скрипт печатает текущие значения, чтобы можно было откатиться.
+- `cmake --install build --prefix ~/.local` → `~/.local/bin/pinch`.
+- `scripts/set-gnome-shortcut.sh [путь_к_бинарю]` переназначает существующий ярлык `custom0` («gnome-screenshot», `Shift+Super+S`) на pinch: имя «pinch», команда — абсолютный путь. Перед изменением скрипт печатает текущие значения, чтобы можно было откатиться.
 - **Скрипт запускает только пользователь.** Агенты его не выполняют и не ставят пакеты через sudo.
 
 ## 11. Готовность v1

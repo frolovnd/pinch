@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Переназначает существующий ярлык GNOME custom0 (сейчас Shift+Super+S → gnome-screenshot -a)
-# на hot-screenshot. Запускает только пользователь. Печатает прежние значения для отката.
+# на pinch. Запускает только пользователь. Печатает прежние значения для отката.
 set -euo pipefail
 
-BIN="${1:-$HOME/.local/bin/hot-screenshot}"
+BIN="${1:-$HOME/.local/bin/pinch}"
 if [[ ! -x "$BIN" ]]; then
     echo "Не найден исполняемый файл: $BIN" >&2
     exit 1
@@ -33,6 +33,6 @@ for key in name command binding; do
     printf '  %s = %s\n' "$key" "$(gsettings get "$SCHEMA:$KPATH" "$key")"
 done
 
-gsettings set "$SCHEMA:$KPATH" name "'hot-screenshot'"
+gsettings set "$SCHEMA:$KPATH" name "'pinch'"
 gsettings set "$SCHEMA:$KPATH" command "'$BIN'"
 echo "Готово: $(gsettings get "$SCHEMA:$KPATH" binding) → $BIN"
