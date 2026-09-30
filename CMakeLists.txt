@@ -50,5 +50,10 @@ add_library(hs_core STATIC
 target_include_directories(hs_core PUBLIC src)
 target_link_libraries(hs_core PUBLIC Qt6::Widgets hs_options)
 
+add_executable(hot-screenshot src/main.cpp)
+target_link_libraries(hot-screenshot PRIVATE hs_core)
+target_compile_definitions(hot-screenshot PRIVATE HS_VERSION="${PROJECT_VERSION}")
+install(TARGETS hot-screenshot DESTINATION bin)
+
 enable_testing()
 add_subdirectory(tests)
