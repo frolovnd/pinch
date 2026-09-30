@@ -7,6 +7,10 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCommandLineParser>
+#include <QLibraryInfo>
+#include <QTranslator>
+
+#include <sys/prctl.h>
 
 namespace {
 void saveStyle(const Overlay& overlay)
@@ -20,7 +24,22 @@ void saveStyle(const Overlay& overlay)
 
 int main(int argc, char** argv)
 {
+    // Снимок в памяти не должен попасть в core-дамп или читаться через ptrace другими процессами пользователя.
+    // HS_ALLOW_TRACE=1 — осознанное исключение пользователя для проверки через strace (иначе strace не читает строки и не цепляется).
+    if (!qEnvironmentVariableIsSet("HS_ALLOW_TRACE") && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0)
+        qWarning("не удалось отключить дампы памяти (PR_SET_DUMPABLE)");
+    // Без платформенной темы Qt не подгружает весь стек GTK/ATK и не ходит за настройками темы.
+    QApplication::setDesktopSettingsAware(false);
+    // Без SESSION_MANAGER Qt не открывает ICE-соединение с менеджером сессии X11.
+    qunsetenv("SESSION_MANAGER");
+    // На случай, если какой-то GTK-код всё же загрузится: не поднимать мост AT-SPI.
+    qputenv("NO_AT_BRIDGE", "1");
+
     QApplication app(argc, argv);
+    // Стандартные диалоги Qt (Сохранить как, подтверждение перезаписи) — на русском; при неудаче молча остаёмся на английском.
+    QTranslator qtTranslator;
+    if (qtTranslator.load(QStringLiteral("qtbase_ru"), QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
+        QApplication::installTranslator(&qtTranslator);
     QApplication::setApplicationName(QStringLiteral("hot-screenshot"));
     QApplication::setApplicationVersion(QStringLiteral(HS_VERSION));
     // После Ctrl+C окно закрыто, но процесс должен жить, пока владеет буфером обмена.
@@ -54,16 +73,19 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    Overlay overlay(std::move(*capture), Settings::load(), screenshotsDir());
+    auto* overlay = new Overlay(std::move(*capture), Settings::load(), screenshotsDir());
 
-    QObject::connect(&overlay, &Overlay::finished, &app, [&overlay] {
-        saveStyle(overlay);
+    QObject::connect(overlay, &Overlay::finished, &app, [overlay] {
+        saveStyle(*overlay);
         QApplication::quit();
     });
-    QObject::connect(&overlay, &Overlay::copyRequested, &app, [&overlay, &lock](const QImage& image) {
-        saveStyle(overlay);
+    QObject::connect(overlay, &Overlay::copyRequested, &app, [overlay, &lock](const QImage& image) {
+        saveStyle(*overlay);
         lock.release(); // следующий хоткей может открыть новый оверлей, пока мы держим буфер
         copyToClipboard(image);
+        // Снимок всего рабочего стола (с копиями) больше не нужен: освобождаем память, пока владеем буфером.
+        // deleteLater, а не delete: мы внутри испускания сигнала самого оверлея.
+        overlay->deleteLater();
         // На X11 данные буфера отдаёт процесс-владелец: живём, пока буфер не займёт кто-то другой.
         QClipboard* clipboard = QGuiApplication::clipboard();
         QObject::connect(clipboard, &QClipboard::changed, clipboard, [clipboard](QClipboard::Mode mode) {
@@ -72,6 +94,6 @@ int main(int argc, char** argv)
         });
     });
 
-    overlay.start();
+    overlay->start();
     return app.exec();
 }

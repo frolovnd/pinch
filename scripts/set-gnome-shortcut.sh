@@ -14,6 +14,11 @@ if [[ "$BIN" == *"'"* ]]; then
     exit 1
 fi
 
+if [[ "$BIN" =~ [[:space:]\\] ]]; then
+    echo "Путь не должен содержать пробелы и обратный слэш (GNOME разбирает команду как shell): $BIN" >&2
+    exit 1
+fi
+
 LIST_SCHEMA=org.gnome.settings-daemon.plugins.media-keys
 SCHEMA=org.gnome.settings-daemon.plugins.media-keys.custom-keybinding
 KPATH=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/

@@ -1,5 +1,6 @@
 #include "toolbar.h"
 
+#include <QApplication>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -32,6 +33,7 @@ Toolbar::Toolbar(QWidget* parent)
     setObjectName(QStringLiteral("toolbar"));
     setAttribute(Qt::WA_StyledBackground);
     setFocusPolicy(Qt::NoFocus);
+    setCursor(Qt::ArrowCursor); // не наследовать перекрестие/«перемещение» оверлея
     setStyleSheet(QStringLiteral(
         "#toolbar { background: rgba(32, 32, 32, 235); border-radius: 6px; }"
         "QToolButton { color: white; background: transparent; border: 1px solid transparent;"
@@ -109,6 +111,21 @@ const QVector<QColor>& Toolbar::palette()
         QColor(0x1E, 0x88, 0xE5), QColor(0x8E, 0x24, 0xAA), QColor(0x00, 0x00, 0x00), QColor(0xFF, 0xFF, 0xFF),
     };
     return colors;
+}
+
+void Toolbar::wheelEvent(QWheelEvent* event)
+{
+    // Явная пересылка родителю: не зависим от того, распространяет ли Qt колесо вверх по иерархии.
+    QWidget* parent = parentWidget();
+    if (!parent) {
+        event->ignore();
+        return;
+    }
+    QWheelEvent forwarded(event->position() + QPointF(pos()), event->globalPosition(), event->pixelDelta(),
+                          event->angleDelta(), event->buttons(), event->modifiers(), event->phase(),
+                          event->inverted(), event->source());
+    QApplication::sendEvent(parent, &forwarded);
+    event->accept();
 }
 
 void Toolbar::setTool(Tool tool)

@@ -237,6 +237,60 @@ private slots:
         QCOMPARE(e.ov.style().thickness, 1);
     }
 
+    void toolbarBackgroundClickDoesNotReachOverlay()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {110, 60});
+        const QRect before = e.ov.selection();
+        click(e.ov.toolbar(), {1, 1});
+        QCOMPARE(e.ov.selection(), before);
+    }
+
+    void toolbarClickWithCounterAddsNothing()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_N);
+        click(e.ov.toolbar(), {1, 1});
+        QVERIFY(e.ov.document().annotations().isEmpty());
+    }
+
+    void wheelOverToolbarStillChangesThickness()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        const int before = e.ov.style().thickness;
+        QWheelEvent ev(QPointF(1, 1), e.ov.toolbar()->mapToGlobal(QPointF(1, 1)), QPoint(), QPoint(0, 120),
+                       Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QApplication::sendEvent(e.ov.toolbar(), &ev);
+        QCOMPARE(e.ov.style().thickness, before + 1);
+    }
+
+    void smallWheelStepsAccumulate()
+    {
+        Env e;
+        const int before = e.ov.style().thickness;
+        for (int i = 0; i < 2; ++i) {
+            QWheelEvent ev(QPointF(50, 50), e.ov.mapToGlobal(QPointF(50, 50)), QPoint(), QPoint(0, 60),
+                           Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+            QApplication::sendEvent(&e.ov, &ev);
+            if (i == 0)
+                QCOMPARE(e.ov.style().thickness, before);
+        }
+        QCOMPARE(e.ov.style().thickness, before + 1);
+    }
+
+    void doubleClickDoesNotActAsSecondPress()
+    {
+        Env e;
+        drag(&e.ov, {10, 10}, {300, 200});
+        QTest::keyClick(&e.ov, Qt::Key_N);
+        click(&e.ov, {100, 100});
+        mouse(&e.ov, QEvent::MouseButtonDblClick, {100, 100}, Qt::LeftButton, Qt::LeftButton);
+        mouse(&e.ov, QEvent::MouseButtonRelease, {100, 100}, Qt::LeftButton, Qt::NoButton);
+        QCOMPARE(e.ov.document().annotations().size(), 1);
+    }
+
     void drawRectAddsAnnotation()
     {
         Env e;

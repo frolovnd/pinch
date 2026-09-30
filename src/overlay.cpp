@@ -520,11 +520,21 @@ void Overlay::mouseReleaseEvent(QMouseEvent* event)
     updateCursor(pos);
 }
 
+// Двойной клик не должен работать как второе нажатие (Qt по умолчанию вызывает mousePressEvent).
+void Overlay::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    event->accept();
+}
+
 void Overlay::wheelEvent(QWheelEvent* event)
 {
-    const int dy = event->angleDelta().y();
-    if (dy != 0)
-        setThickness(m_style.thickness + (dy > 0 ? 1 : -1));
+    // Тачпады и hi-res колёса шлют дробные шаги: копим, меняем толщину на 1 за каждые 120 единиц.
+    m_wheelAccumulator += event->angleDelta().y();
+    const int steps = m_wheelAccumulator / 120;
+    if (steps != 0) {
+        m_wheelAccumulator -= steps * 120;
+        setThickness(m_style.thickness + steps);
+    }
     event->accept();
 }
 
@@ -637,7 +647,7 @@ void Overlay::paintSizeLabel(QPainter& painter) const
     const QRect screen = screenAt(m_selection.topLeft());
     const int minY = screen.isEmpty() ? 0 : screen.top();
     QPoint topLeft(m_selection.left(), m_selection.top() - size.height() - 4);
-    if (topLeft.y() < minY)
+    if (screen.isEmpty() || topLeft.y() < minY)
         topLeft = m_selection.topLeft() + QPoint(4, 4);
     const QRect box(topLeft, size);
     painter.setPen(Qt::NoPen);

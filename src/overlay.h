@@ -37,6 +37,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
 
@@ -86,6 +87,7 @@ private:
     QRect m_selectionAtPress;
     std::optional<Annotation> m_current; // рисуемая аннотация или вводимый текст
     bool m_textEditing = false;
+    int m_wheelAccumulator = 0; // накопленные единицы колеса (120 = один шаг)
 
     mutable QImage m_cache; // render() для текущего выделения и документа
     mutable bool m_cacheValid = false;

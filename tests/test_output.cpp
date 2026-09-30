@@ -114,6 +114,8 @@ private slots:
         const WriteResult r = writeFileAtomic(dir.filePath(QStringLiteral("no/such/a.png")), "x", WriteMode::NoReplace);
         QCOMPARE(r.status, WriteResult::Error);
         QVERIFY(!r.error.isEmpty());
+        QVERIFY2(r.error.contains(dir.filePath(QStringLiteral("no/such"))), qPrintable(r.error));
+        QVERIFY2(r.error.contains(QStringLiteral("Не удалось")), qPrintable(r.error));
     }
 
     void quickSaveFileNames()

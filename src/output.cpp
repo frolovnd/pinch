@@ -16,9 +16,9 @@
 #include <unistd.h>
 
 namespace {
-QString sysError(const char* what, int err)
+QString sysText(int err)
 {
-    return QStringLiteral("%1: %2").arg(QString::fromLatin1(what), QString::fromLocal8Bit(std::strerror(err)));
+    return QString::fromLocal8Bit(std::strerror(err));
 }
 
 bool writeAll(int fd, const QByteArray& data)
@@ -57,7 +57,9 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
     // mkostemp создаёт файл с O_CREAT | O_EXCL и правами 0600.
     const int fd = ::mkostemp(temp.data(), O_CLOEXEC);
     if (fd < 0)
-        return {WriteResult::Error, sysError("mkostemp", errno)};
+        return {WriteResult::Error,
+                QStringLiteral("Не удалось создать временный файл в каталоге «%1»: %2")
+                    .arg(info.absolutePath(), sysText(errno))};
 
     bool ok = writeAll(fd, data);
     int err = ok ? 0 : errno;
@@ -71,7 +73,8 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
     }
     if (!ok) {
         ::unlink(temp.constData());
-        return {WriteResult::Error, sysError("write", err)};
+        return {WriteResult::Error,
+                QStringLiteral("Не удалось записать «%1»: %2").arg(info.absoluteFilePath(), sysText(err))};
     }
 
     // Переименование подменяет запись в каталоге и не следует по симлинку на месте target.
@@ -81,7 +84,10 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
     if (rc != 0) {
         err = errno;
         ::unlink(temp.constData());
-        return {err == EEXIST ? WriteResult::Exists : WriteResult::Error, sysError("rename", err)};
+        if (err == EEXIST)
+            return {WriteResult::Exists, QStringLiteral("Файл «%1» уже существует").arg(info.absoluteFilePath())};
+        return {WriteResult::Error,
+                QStringLiteral("Не удалось сохранить «%1»: %2").arg(info.absoluteFilePath(), sysText(err))};
     }
     return {WriteResult::Ok, {}};
 }

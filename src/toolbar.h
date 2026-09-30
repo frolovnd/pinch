@@ -3,6 +3,8 @@
 #include "annotation.h"
 
 #include <QColor>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include <QMap>
 #include <QVector>
 #include <QWidget>
@@ -34,6 +36,15 @@ signals:
     void quickSaveRequested();
     void saveAsRequested();
     void closeRequested();
+
+protected:
+    // Клики по фону панели не должны доходить до оверлея (иначе меняют выделение или ставят номерок).
+    // Колесо передаём оверлею явно: им меняют толщину.
+    void wheelEvent(QWheelEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override { event->accept(); }
+    void mouseReleaseEvent(QMouseEvent* event) override { event->accept(); }
+    void mouseDoubleClickEvent(QMouseEvent* event) override { event->accept(); }
+    void mouseMoveEvent(QMouseEvent* event) override { event->accept(); }
 
 private:
     QToolButton* addButton(const QString& objectName, const QString& text, const QString& toolTip);
