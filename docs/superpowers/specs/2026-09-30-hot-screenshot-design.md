@@ -55,7 +55,7 @@ Wayland; HiDPI (масштаб ≠ 1); трей и фоновый демон; с
 ### `capture.{h,cpp}` — захват экрана
 ```cpp
 struct ScreenShot { QImage image; QRect geometry; };     // один монитор, geometry в глобальных координатах X
-struct Capture   { QImage image; QVector<QRect> screens; }; // screens — в координатах изображения
+struct Capture   { QImage image; QPoint origin; QVector<QRect> screens; }; // origin — глобальные координаты X угла изображения; screens — в координатах изображения
 // Чистая функция: склеить снимки мониторов в одно изображение размером с их общий охватывающий прямоугольник.
 // Мёртвые зоны заливаются чёрным. Возвращает также геометрии мониторов, сдвинутые в координаты изображения.
 Capture composeScreens(const QVector<ScreenShot>& shots);
@@ -101,7 +101,7 @@ struct Annotation {
     QString text;           // только Text, строки через '\n'
 };
 ```
-Номер у `Counter` не хранится: он равен порядковому номеру среди `Counter` в списке (1, 2, 3…). После undo нумерация пересчитывается сама.
+Номер у `Counter` не хранится: он равен порядковому номеру среди `Counter` в списке (1, 2, 3…), функция `counterNumbers(annotations)` в `annotation.h`. После undo нумерация пересчитывается сама.
 
 ### `document.{h,cpp}` — список аннотаций и undo/redo
 ```cpp
@@ -191,7 +191,7 @@ struct Settings {
 class Overlay : public QWidget {
     Q_OBJECT
 public:
-    Overlay(Capture capture, Settings settings);
+    Overlay(Capture capture, Settings settings, QString saveDir); // saveDir — каталог быстрого сохранения (main передаёт screenshotsDir())
     void start();                       // показать и захватить клавиатуру
     QRect selection() const;            // пустой, если не выбрано
     Tool tool() const; Style style() const;
@@ -201,7 +201,7 @@ signals:
     void finished();                    // сохранено или отменено → main завершает процесс
 };
 ```
-Окно X11: `Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint`, геометрия = охватывающий прямоугольник мониторов, `setMouseTracking(true)`. `start()` = `show(); raise(); activateWindow(); grabKeyboard();`. Работает ли фокус клавиатуры у override-redirect окна на реальном GNOME — проверяется вручную (раздел 9).
+Окно X11: `Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint`, геометрия = `QRect(capture.origin, capture.image.size())`, `setMouseTracking(true)`. `start()` = `show(); raise(); activateWindow(); grabKeyboard();`. Работает ли фокус клавиатуры у override-redirect окна на реальном GNOME — проверяется вручную (раздел 9).
 
 **Отрисовка (`paintEvent`)**, по порядку:
 1. Снимок целиком.
@@ -225,7 +225,7 @@ signals:
   - Клик в другом месте, смена инструмента, Esc или любое сочетание с Ctrl сначала завершают текст (пустой отбрасывается), затем выполняется действие. Esc при этом только завершает текст и не закрывает оверлей.
 
 **Мышь для рисующих инструментов:**
-- Pen/Marker: точки добавляются при сдвиге ≥ 1px.
+- Pen/Marker: точки добавляются при сдвиге ≥ 1px; Marker из одной точки не добавляется.
 - Line/Arrow/Rect/Ellipse/Pixelate: `[start, текущая]`. Shift привязывает: для Line/Arrow — `snapLine45`, для Rect/Ellipse/Pixelate — `snapSquare`. Фигура с нулевой длиной или шириной/высотой < 2 не добавляется.
 - Counter: клик добавляет номерок.
 
@@ -242,6 +242,8 @@ signals:
 | Ctrl+Z / Ctrl+Shift+Z, Ctrl+Y | отменить / повторить |
 | Ctrl+A | выделить все мониторы (охватывающий прямоугольник) |
 | P M L A R E T N B | выбор инструмента (без модификаторов, не в тексте, только при наличии выделения) |
+
+Буквенные клавиши и сочетания работают в любой раскладке: символ нелатинской раскладки переводится в латинскую букву по X11-скан-коду физической клавиши (`keys.{h,cpp}`, `layoutIndependentKey`). Вводимый текст берётся из `QKeyEvent::text()` и не зависит от этого перевода.
 | V | `Tool::None` (перемещение/ресайз выделения), те же условия |
 
 Действия вывода без выделения игнорируются.
@@ -249,7 +251,7 @@ signals:
 **Курсоры:** Selecting → крест; над маркерами → соответствующий ресайз; внутри при `Tool::None` → `SizeAllCursor`; Text → `IBeamCursor`; прочие инструменты → крест.
 
 **Диалоги.** Override-redirect окно всегда выше обычных, поэтому перед любым диалогом (сохранение, ошибка) оверлей делает `releaseKeyboard(); hide();`, а если нужно вернуться — `start()`.
-- Сохранить как: `QFileDialog::getSaveFileName`, стартовый путь `screenshotsDir()/<quickSaveFileName(now,0)>`, фильтр `PNG (*.png)`. Если нет суффикса `.png`, он добавляется. Подтверждение перезаписи — средствами самого диалога, запись в режиме `Replace`. Отмена диалога → вернуться в оверлей.
+- Сохранить как: собственный `QFileDialog` Qt (`DontUseNativeDialog`, `setDefaultSuffix("png")` — суффикс добавляется до вопроса о перезаписи), стартовый путь `saveDir/<quickSaveFileName(now,0)>`, фильтр `PNG (*.png)`. Подтверждение перезаписи — средствами диалога, запись в режиме `Replace`. Отмена диалога → вернуться в оверлей.
 - Ошибка записи (оба вида сохранения) → `QMessageBox::critical` с текстом ошибки, затем возврат в оверлей.
 - Успешное сохранение → путь в stdout, `finished()`.
 
@@ -271,9 +273,9 @@ signals:
 Структура:
 ```
 CMakeLists.txt  README.md
-src/    main.cpp capture.* instancelock.* geometry.* annotation.h document.* renderer.* output.* settings.* toolbar.* overlay.*
+src/    main.cpp capture.* instancelock.* geometry.* keys.* annotation.h document.* renderer.* output.* settings.* toolbar.* overlay.*
 tests/  CMakeLists.txt test_capture.cpp test_instancelock.cpp test_geometry.cpp test_document.cpp
-        test_renderer.cpp test_output.cpp test_settings.cpp test_overlay.cpp
+        test_renderer.cpp test_output.cpp test_settings.cpp test_toolbar.cpp test_keys.cpp test_overlay.cpp
 scripts/set-gnome-shortcut.sh
 docs/superpowers/{specs,plans}/
 ```
