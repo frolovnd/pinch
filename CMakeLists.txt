@@ -35,6 +35,8 @@ else()
 endif()
 
 add_library(hs_core STATIC
+    src/annotation.h
+    src/document.h src/document.cpp
     src/geometry.h src/geometry.cpp
     src/capture.h src/capture.cpp
     src/instancelock.h src/instancelock.cpp
