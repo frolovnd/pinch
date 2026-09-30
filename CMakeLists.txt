@@ -1,0 +1,44 @@
+cmake_minimum_required(VERSION 3.16)
+project(hot-screenshot VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
+
+include(CheckPIESupported)
+check_pie_supported()
+
+option(HS_SANITIZE "Собрать с AddressSanitizer и UndefinedBehaviorSanitizer" OFF)
+
+find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Test)
+
+# Общие флаги для всех наших целей: предупреждения как ошибки и hardening.
+add_library(hs_options INTERFACE)
+target_compile_options(hs_options INTERFACE
+    -Wall -Wextra -Wpedantic -Werror
+    -fstack-protector-strong -fstack-clash-protection -fcf-protection)
+target_link_options(hs_options INTERFACE
+    -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack)
+if(HS_SANITIZE)
+    target_compile_options(hs_options INTERFACE
+        -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -U_FORTIFY_SOURCE)
+    target_link_options(hs_options INTERFACE -fsanitize=address,undefined)
+else()
+    # _FORTIFY_SOURCE требует оптимизации; Ubuntu уже задаёт его сама, поэтому сначала снимаем.
+    target_compile_options(hs_options INTERFACE
+        "$<$<NOT:$<CONFIG:Debug>>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=3>")
+endif()
+
+add_library(hs_core STATIC
+    src/geometry.h src/geometry.cpp
+)
+target_include_directories(hs_core PUBLIC src)
+target_link_libraries(hs_core PUBLIC Qt6::Widgets hs_options)
+
+enable_testing()
+add_subdirectory(tests)
