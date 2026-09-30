@@ -12,3 +12,4 @@ endfunction()
 
 hs_add_test(test_geometry)
 hs_add_test(test_capture)
+hs_add_test(test_instancelock)

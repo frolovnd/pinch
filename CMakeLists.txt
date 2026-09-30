@@ -37,6 +37,7 @@ endif()
 add_library(hs_core STATIC
     src/geometry.h src/geometry.cpp
     src/capture.h src/capture.cpp
+    src/instancelock.h src/instancelock.cpp
 )
 target_include_directories(hs_core PUBLIC src)
 target_link_libraries(hs_core PUBLIC Qt6::Widgets hs_options)
