@@ -1,5 +1,6 @@
 // Поддельный KWin: имя org.kde.KWin и org.kde.KWin.ScreenShot2 на сессионной шине. Режим — аргумент командной строки:
-// ok | deny | short | badformat. Запускается отдельным процессом (приватная шина из tests/dbustestbus.h).
+// ok | deny | short | badformat | big. Запускается отдельным процессом (приватная шина из tests/dbustestbus.h).
+// big: 2560×1440 RGB32 (~14 МиБ, много больше буфера канала) записываются целиком до ответа — как может делать KWin.
 // Как настоящий KWin, опознаёт вызывающего по /proc/<pid>/exe (fakeauth.h): недампируемому — NoAuthorized.
 #include "fakeauth.h"
 
@@ -30,6 +31,27 @@ public slots:
             sendErrorReply(QStringLiteral("org.kde.KWin.ScreenShot2.Error.NoAuthorized"),
                            QStringLiteral("The process is not authorized to take a screenshot"));
             return {};
+        }
+        if (m_mode == QLatin1String("big")) {
+            // Запись до ответа блокируется, пока клиент не прочитает: читатель клиента обязан работать параллельно вызову.
+            constexpr uint width = 2560;
+            constexpr uint height = 1440;
+            std::vector<uint32_t> pixels(size_t(width) * height, 0xff3366ccu);
+            pixels[0] = 0xffff0000u; // метка левого верхнего угла
+            const char* p = reinterpret_cast<const char*>(pixels.data());
+            const size_t bytes = pixels.size() * sizeof(uint32_t);
+            size_t done = 0;
+            while (done < bytes) {
+                const ssize_t n = ::write(pipe.fileDescriptor(), p + done, bytes - done);
+                if (n <= 0)
+                    break;
+                done += static_cast<size_t>(n);
+            }
+            return {{QStringLiteral("type"), QStringLiteral("raw")},
+                    {QStringLiteral("width"), width},
+                    {QStringLiteral("height"), height},
+                    {QStringLiteral("stride"), width * 4},
+                    {QStringLiteral("format"), static_cast<uint>(QImage::Format_RGB32)}};
         }
         // Пишем в дубликат дескриптора из отдельного потока, чтобы ответ не ждал читателя.
         const int fd = ::dup(pipe.fileDescriptor());

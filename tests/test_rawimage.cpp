@@ -92,6 +92,13 @@ private slots:
         QCOMPARE(img->pixel(1, 0), qRgb(0x44, 0x55, 0x66));
         QVERIFY(imageFromKWin(b, 2, 2, 12, QImage::Format_RGB32).has_value());
         QVERIFY(imageFromKWin(b, 2, 2, 12, QImage::Format_RGBX8888).has_value());
+        QVERIFY(imageFromKWin(b, 2, 2, 12, QImage::Format_RGBA8888).has_value());
+        QVERIFY(imageFromKWin(b, 2, 2, 12, QImage::Format_ARGB32_Premultiplied).has_value());
+        // RGBA8888(_Premultiplied): байты в памяти R, G, B, A — слово 0xff112233 (little-endian) даёт R=0x33, B=0x11.
+        const auto rgba = imageFromKWin(b, 2, 2, 12, QImage::Format_RGBA8888_Premultiplied);
+        QVERIFY(rgba.has_value());
+        QCOMPARE(rgba->format(), QImage::Format_RGB32);
+        QCOMPARE(rgba->pixel(0, 0), qRgb(0x33, 0x22, 0x11));
     }
 
     void rejectsBadKWin()

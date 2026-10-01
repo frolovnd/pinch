@@ -52,8 +52,8 @@ std::optional<QImage> imageFromShm(const uchar* data, qsizetype dataSize, int wi
 
 std::optional<QImage> imageFromKWin(const QByteArray& data, int width, int height, int stride, int qimageFormat)
 {
-    static const int kAllowed[] = {QImage::Format_RGB32, QImage::Format_ARGB32, QImage::Format_ARGB32_Premultiplied,
-                                   QImage::Format_RGBX8888, QImage::Format_RGBA8888};
+    static const int kAllowed[] = {QImage::Format_RGB32,    QImage::Format_ARGB32,   QImage::Format_ARGB32_Premultiplied,
+                                   QImage::Format_RGBX8888, QImage::Format_RGBA8888, QImage::Format_RGBA8888_Premultiplied};
     if (std::find(std::begin(kAllowed), std::end(kAllowed), qimageFormat) == std::end(kAllowed))
         return std::nullopt;
 

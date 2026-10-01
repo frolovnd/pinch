@@ -64,9 +64,9 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
 - Всё освобождается (munmap, close memfd, destroy объектов, `wl_display_disconnect`) при любом исходе.
 
 ### 4.3 KWin (KDE Plasma) — `kwincapture.{h,cpp}`
-- Проверка наличия: интерфейс `org.kde.KWin.ScreenShot2` у сервиса `org.kde.KWin`, путь `/org/kde/KWin/ScreenShot2`.
+- Проверка наличия: интерфейс `org.kde.KWin.ScreenShot2` у сервиса `org.kde.KWin`, путь `/org/kde/KWin/ScreenShot2`. Выполняется, только если нет screencopy и `XDG_CURRENT_DESKTOP` содержит `KDE` (без учёта регистра). Сообщения проверки и вызова — без автозапуска службы (`setAutoStartService(false)`): KWin ничем не активируется по D-Bus.
 - `pipe2(O_CLOEXEC)`; вызов `CaptureWorkspace(options, QDBusUnixFileDescriptor(writeEnd))`, options: `include-cursor=false`, `native-resolution=false`; сразу закрываем свой writeEnd; читаем readEnd до EOF (таймаут 5 с), ответ D-Bus — словарь `type` (ожидаем `raw`), `width`, `height`, `stride`, `format` (значение `QImage::Format`).
-- Проверки: `stride*height` байт получено, формат из разрешённого списка (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`, `RGBX8888`, `RGBA8888`); иначе ошибка метода. Результат → `Format_RGB32`, `origin` = левый верхний угол охватывающего прямоугольника мониторов, `screens` — из `QScreen::geometry()` в координатах изображения.
+- Проверки: `stride*height` байт получено, формат из разрешённого списка (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`, `RGBX8888`, `RGBA8888`, `RGBA8888_Premultiplied`); иначе ошибка метода. Результат → `Format_RGB32`, `origin` = левый верхний угол охватывающего прямоугольника мониторов, `screens` — из `QScreen::geometry()` в координатах изображения.
 - KWin пускает к ScreenShot2 только программы, чей `.desktop` содержит `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` → добавляем ключ в `io.github.ufna.pinch.desktop`, а сам файл генерируем при установке с **абсолютным** `Exec=<prefix>/<bindir>/pinch` (чтобы KWin сопоставил процесс с файлом). Без установленного `.desktop` метод получит отказ — это штатная ошибка, дальше пробуется портал.
 
 ### 4.4 Портал (GNOME и запасной везде) — `portalcapture.{h,cpp}`

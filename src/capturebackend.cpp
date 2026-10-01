@@ -23,6 +23,12 @@ bool isWaylandPlatform(const QString& platformName)
     return platformName.startsWith(QLatin1String("wayland"));
 }
 
+bool shouldProbeKWin(bool hasScreencopy, const QString& currentDesktop)
+{
+    // screencopy есть только у wlroots-композиторов (не KWin), а KWin — только в сеансе KDE Plasma.
+    return !hasScreencopy && currentDesktop.contains(QLatin1String("KDE"), Qt::CaseInsensitive);
+}
+
 bool xwaylandFallback(const CaptureEnvironment& env)
 {
     return env.waylandDisplay && env.platformName == QLatin1String("xcb") && captureOrder(env).contains(CaptureMethod::X11);
@@ -55,7 +61,8 @@ CaptureEnvironment detectEnvironment()
     env.waylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
     if (isWaylandPlatform(env.platformName)) {
         env.hasScreencopy = screencopyAvailable();
-        env.hasKWinScreenShot2 = kwinScreenShotAvailable(QDBusConnection::sessionBus());
+        if (shouldProbeKWin(env.hasScreencopy, QString::fromLocal8Bit(qgetenv("XDG_CURRENT_DESKTOP"))))
+            env.hasKWinScreenShot2 = kwinScreenShotAvailable(QDBusConnection::sessionBus());
     }
     return env;
 }

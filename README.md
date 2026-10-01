@@ -40,7 +40,8 @@ Wayland (`-DPINCH_WAYLAND=ON`, по умолчанию) требует `wayland-
 | KDE Plasma | `kwin` | D-Bus `org.kde.KWin.ScreenShot2.CaptureWorkspace`; пиксели приходят через pipe, без файлов |
 | GNOME и запасной путь везде | `portal` | `org.freedesktop.portal.Screenshot` (D-Bus); портал сам пишет файл со снимком |
 
-Под Wayland порядок такой: `screencopy` (если композитор его предлагает), `kwin` (если есть `org.kde.KWin.ScreenShot2`), затем `portal`;
+Под Wayland порядок такой: `screencopy` (если композитор его предлагает), `kwin` (если screencopy нет, `XDG_CURRENT_DESKTOP`
+содержит `KDE` и на шине есть `org.kde.KWin.ScreenShot2`; KWin не запускается через D-Bus-активацию), затем `portal`;
 первый успешный способ выигрывает и называется в stderr (`pinch: способ снимка — …`), при неудаче всех — окно
 с перечнем ошибок и код выхода 1. Платформа Qt `wayland-egl` и подобные считаются Wayland.
 Для отладки и ручной проверки способ можно зафиксировать: `PINCH_CAPTURE=x11|screencopy|kwin|portal pinch`

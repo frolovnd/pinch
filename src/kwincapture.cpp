@@ -116,6 +116,7 @@ bool kwinScreenShotAvailable(QDBusConnection bus)
         return false;
     QDBusMessage msg = QDBusMessage::createMethodCall(SERVICE, PATH, QStringLiteral("org.freedesktop.DBus.Introspectable"),
                                                       QStringLiteral("Introspect"));
+    msg.setAutoStartService(false); // только спросить: не запускать KWin через D-Bus-активацию
     const QDBusMessage reply = bus.call(msg, QDBus::Block, 2000);
     if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
         return false;
@@ -143,6 +144,7 @@ std::optional<Capture> captureWithKWin(QDBusConnection bus, const QVector<QRect>
     bool traced = false;
     {
         QDBusMessage msg = QDBusMessage::createMethodCall(SERVICE, PATH, INTERFACE, QStringLiteral("CaptureWorkspace"));
+        msg.setAutoStartService(false); // работающий KWin — это сам сеанс; запускать его по запросу нельзя
         const QVariantMap options{{QStringLiteral("include-cursor"), false}, {QStringLiteral("native-resolution"), false}};
         msg << options << QVariant::fromValue(QDBusUnixFileDescriptor(fds[1]));
         {

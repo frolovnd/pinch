@@ -100,6 +100,60 @@ private slots:
         QCOMPARE(error, qtTrId("error.capture.tracer_attached"));
     }
 
+    // Ни проверка, ни снимок не запускают org.kde.KWin через D-Bus-активацию (setAutoStartService(false)):
+    // на шине с активируемой «службой», которая лишь оставляет метку, метки быть не должно.
+    void doesNotActivateService()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString marker = dir.filePath(QStringLiteral("activated"));
+        QVERIFY(QDir(dir.path()).mkdir(QStringLiteral("services")));
+        QFile service(dir.filePath(QStringLiteral("services/org.kde.KWin.service")));
+        QVERIFY(service.open(QIODevice::WriteOnly));
+        service.write("[D-BUS Service]\nName=org.kde.KWin\nExec=/bin/sh -c \"touch '" + QFile::encodeName(marker) + "'\"\n");
+        service.close();
+        QFile config(dir.filePath(QStringLiteral("bus.conf")));
+        QVERIFY(config.open(QIODevice::WriteOnly));
+        config.write("<!DOCTYPE busconfig PUBLIC \"-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN\"\n"
+                     " \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n"
+                     "<busconfig>\n"
+                     "  <type>session</type>\n"
+                     "  <listen>unix:dir=" + QFile::encodeName(dir.path()) + "</listen>\n"
+                     "  <servicedir>" + QFile::encodeName(dir.filePath(QStringLiteral("services"))) + "</servicedir>\n"
+                     "  <policy context=\"default\">\n"
+                     "    <allow send_destination=\"*\" eavesdrop=\"true\"/>\n"
+                     "    <allow eavesdrop=\"true\"/>\n"
+                     "    <allow own=\"*\"/>\n"
+                     "  </policy>\n"
+                     "</busconfig>\n");
+        config.close();
+
+        DBusTestBus bus;
+        QVERIFY(bus.start(config.fileName()));
+        QDBusConnection c = bus.connect(QStringLiteral("t-noact"));
+        QVERIFY(!kwinScreenShotAvailable(c));
+        QString error;
+        QVERIFY(!captureWithKWin(c, {QRect(0, 0, 4, 2)}, &error).has_value());
+        QVERIFY(!error.isEmpty());
+        QVERIFY(!QFile::exists(marker));
+    }
+
+    // Больше буфера канала (2560×1440, ~14 МиБ), и KWin пишет всё до ответа: без параллельного читателя клиент ждал бы
+    // ответа, а KWin — свободного места в канале.
+    void readsLargeImageWrittenBeforeReply()
+    {
+        runFake(QStringLiteral("big"));
+        QString error;
+        QElapsedTimer timer;
+        timer.start();
+        const auto cap = captureWithKWin(m_bus->connect(QStringLiteral("t-big")), {QRect(0, 0, 2560, 1440)}, &error);
+        QVERIFY2(cap.has_value(), qPrintable(error));
+        QVERIFY(timer.elapsed() < 4000); // заметно меньше тайм-аута вызова (5 с)
+        QCOMPARE(cap->image.size(), QSize(2560, 1440));
+        QCOMPARE(cap->image.pixel(0, 0), qRgb(0xff, 0, 0));
+        QCOMPARE(cap->image.pixel(2559, 1439), qRgb(0x33, 0x66, 0xcc));
+    }
+
     void notAvailableWithoutService()
     {
         QVERIFY(!kwinScreenShotAvailable(m_bus->connect(QStringLiteral("t-none"))));

@@ -9,7 +9,7 @@
 
 #include <optional>
 
-// Есть ли у org.kde.KWin объект /org/kde/KWin/ScreenShot2 (интроспекция).
+// Есть ли у org.kde.KWin объект /org/kde/KWin/ScreenShot2 (интроспекция). Службу не активирует.
 bool kwinScreenShotAvailable(QDBusConnection bus);
 
 // Снимок рабочей области через org.kde.KWin.ScreenShot2.CaptureWorkspace.

@@ -76,6 +76,18 @@ private slots:
         QVERIFY(!xwaylandFallback(e));
     }
 
+    // KWin проверяется только в KDE и только без screencopy: иначе лишний вызов D-Bus (и возможная активация службы).
+    void kwinProbeOnlyOnKde()
+    {
+        QVERIFY(shouldProbeKWin(false, QStringLiteral("KDE")));
+        QVERIFY(shouldProbeKWin(false, QStringLiteral("kde")));
+        QVERIFY(shouldProbeKWin(false, QStringLiteral("X-Custom:KDE")));
+        QVERIFY(!shouldProbeKWin(true, QStringLiteral("KDE")));
+        QVERIFY(!shouldProbeKWin(false, QStringLiteral("ubuntu:GNOME")));
+        QVERIFY(!shouldProbeKWin(false, QStringLiteral("Hyprland")));
+        QVERIFY(!shouldProbeKWin(false, QString()));
+    }
+
     void forcedMethod()
     {
         QCOMPARE(captureOrder(env("wayland", true, true, "portal")), (QVector<CaptureMethod>{CaptureMethod::Portal}));

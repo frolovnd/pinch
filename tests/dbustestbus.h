@@ -9,14 +9,15 @@
 #include <QStringList>
 #include <QThread>
 
-// Запускает приватный dbus-daemon (сессионная конфигурация) и даёт его адрес. Останавливает в деструкторе.
+// Запускает приватный dbus-daemon (сессионная конфигурация или своя, configFile) и даёт его адрес.
+// Останавливает в деструкторе.
 class DBusTestBus {
 public:
-    bool start()
+    bool start(const QString& configFile = QString())
     {
         m_daemon.setProcessChannelMode(QProcess::ForwardedErrorChannel);
-        m_daemon.start(QStringLiteral("dbus-daemon"), {QStringLiteral("--session"), QStringLiteral("--nofork"),
-                                                       QStringLiteral("--print-address=1")});
+        const QString config = configFile.isEmpty() ? QStringLiteral("--session") : QStringLiteral("--config-file=") + configFile;
+        m_daemon.start(QStringLiteral("dbus-daemon"), {config, QStringLiteral("--nofork"), QStringLiteral("--print-address=1")});
         if (!m_daemon.waitForStarted(5000))
             return false;
         QElapsedTimer timer;

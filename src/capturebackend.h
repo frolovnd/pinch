@@ -25,6 +25,8 @@ bool isWaylandPlatform(const QString& platformName);
 QVector<CaptureMethod> captureOrder(const CaptureEnvironment& env);
 QString captureMethodName(CaptureMethod m); // "x11" | "screencopy" | "kwin" | "portal"
 CaptureEnvironment detectEnvironment();     // platformName, forced, waylandDisplay; под Wayland — hasScreencopy
+// Проверять ли наличие KWin ScreenShot2 (вызов D-Bus при запуске).
+bool shouldProbeKWin(bool hasScreencopy, const QString& currentDesktop);
 // Qt работает через xcb (Xwayland) в сеансе Wayland, а снимать будет способ x11: снимок может оказаться чёрным.
 bool xwaylandFallback(const CaptureEnvironment& env);
 

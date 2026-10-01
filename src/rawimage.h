@@ -23,7 +23,7 @@ constexpr int MAX_SCREEN_DIMENSION = 32768;
 std::optional<QImage> imageFromShm(const uchar* data, qsizetype dataSize, int width, int height, int stride, quint32 format, bool yInvert);
 
 // Ответ KWin ScreenShot2 → Format_RGB32 (глубокая копия). Разрешены значения QImage::Format: RGB32, ARGB32,
-// ARGB32_Premultiplied, RGBX8888, RGBA8888. nullopt: иной формат, размеры <= 0, stride < width*4,
+// ARGB32_Premultiplied, RGBX8888, RGBA8888, RGBA8888_Premultiplied. nullopt: иной формат, размеры <= 0, stride < width*4,
 // stride % 4 != 0, огромные размеры, data.size() < stride*height, переполнение при вычислении размеров.
 std::optional<QImage> imageFromKWin(const QByteArray& data, int width, int height, int stride, int qimageFormat);
 
