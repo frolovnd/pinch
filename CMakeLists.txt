@@ -17,7 +17,7 @@ option(PINCH_WERROR "Считать предупреждения компиля�
 option(PINCH_SANITIZE "Собрать с AddressSanitizer и UndefinedBehaviorSanitizer" OFF)
 option(PINCH_WAYLAND "Поддержка Wayland (screencopy)" ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Test LinguistTools)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets DBus Test LinguistTools)
 
 # Общие флаги для всех наших целей: предупреждения (как ошибки, если PINCH_WERROR) и hardening.
 # Предупреждения — только для C++: C-код в проекте лишь сгенерированный (wayland-scanner), и его
@@ -60,6 +60,7 @@ add_library(pinch_core STATIC
     src/i18n.h src/i18n.cpp
     src/rawimage.h src/rawimage.cpp
     src/screencopy.h src/screencopy.cpp
+    src/kwincapture.h src/kwincapture.cpp
 )
 # Иконки окна встроены в бинарь (для диалогов и заголовков); установка hicolor — ниже.
 qt_add_resources(pinch_core "icons" PREFIX "/icons" BASE "data/icons/hicolor" FILES
@@ -73,7 +74,7 @@ qt_add_translations(pinch_core
     RESOURCE_PREFIX "/i18n"
     LRELEASE_OPTIONS -idbased)
 target_include_directories(pinch_core PUBLIC src)
-target_link_libraries(pinch_core PUBLIC Qt6::Widgets pinch_options)
+target_link_libraries(pinch_core PUBLIC Qt6::Widgets Qt6::DBus pinch_options)
 
 # Wayland: собственное соединение wayland-client и протокол wlr-screencopy (код генерирует wayland-scanner).
 if(PINCH_WAYLAND)

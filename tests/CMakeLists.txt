@@ -24,6 +24,14 @@ pinch_add_test(test_overlay)
 pinch_add_test(test_appicon)
 pinch_add_test(test_i18n)
 pinch_add_test(test_rawimage)
+
+# Клиент KWin ScreenShot2 против поддельного KWin на приватной шине (dbus-daemon должен быть в PATH).
+add_executable(fake_kwin fakes/fake_kwin.cpp)
+target_link_libraries(fake_kwin PRIVATE Qt6::Gui Qt6::DBus pinch_options)
+pinch_add_test(test_kwincapture)
+add_dependencies(test_kwincapture fake_kwin)
+target_include_directories(test_kwincapture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(test_kwincapture PRIVATE FAKE_KWIN_PATH="$<TARGET_FILE:fake_kwin>")
 if(PINCH_WAYLAND)
     pinch_add_test(test_screencopy_live)
 

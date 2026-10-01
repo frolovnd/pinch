@@ -195,5 +195,29 @@
         <source>too many Wayland outputs (more than %1)</source>
         <translation>too many Wayland outputs (more than %1)</translation>
     </message>
+    <message id="error.capture.kwin.no_screens">
+        <source>no monitors to capture</source>
+        <translation>no monitors to capture</translation>
+    </message>
+    <message id="error.capture.kwin.pipe_failed">
+        <source>could not create a pipe: %1</source>
+        <translation>could not create a pipe: %1</translation>
+    </message>
+    <message id="error.capture.kwin.call_failed">
+        <source>KWin ScreenShot2 call failed: %1</source>
+        <translation>KWin ScreenShot2 call failed: %1</translation>
+    </message>
+    <message id="error.capture.kwin.desktop_hint">
+        <source>Install pinch.desktop (cmake --install build) so KWin can authorize pinch.</source>
+        <translation>Install pinch.desktop (cmake --install build) so KWin can authorize pinch.</translation>
+    </message>
+    <message id="error.capture.kwin.read_timeout">
+        <source>timed out reading the image from KWin</source>
+        <translation>timed out reading the image from KWin</translation>
+    </message>
+    <message id="error.capture.kwin.bad_reply">
+        <source>KWin returned data in an unexpected format</source>
+        <translation>KWin returned data in an unexpected format</translation>
+    </message>
 </context>
 </TS>
