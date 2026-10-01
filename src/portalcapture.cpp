@@ -1,4 +1,5 @@
 #include "portalcapture.h"
+#include "dumpable.h"
 
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
@@ -79,7 +80,11 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
     if (bus.interface() && bus.interface()->isServiceRegistered(registry).value()) {
         QDBusMessage reg = QDBusMessage::createMethodCall(registry, PORTAL_PATH, registry, QStringLiteral("Register"));
         reg << QStringLiteral("pinch") << QVariantMap();
+        // Портал опознаёт вызывающего по /proc/<pid>/root: на время вызова процесс дампируемый (см. dumpable.h).
+        ScopedDumpable dumpable;
         bus.call(reg, QDBus::Block, 2000);
+        if (!dumpable.restore())
+            return fail(qtTrId("error.capture.tracer_attached"));
     }
 
     // 2. Подписка на Response до вызова, иначе быстрый ответ потеряется.
@@ -111,7 +116,13 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
                                                       QStringLiteral("Screenshot"));
     const QVariantMap options{{QStringLiteral("handle_token"), token}, {QStringLiteral("interactive"), false}};
     msg << QString() << options;
-    const QDBusMessage reply = bus.call(msg, QDBus::Block, static_cast<int>(qMax<qint64>(1, deadline.remainingTime())));
+    QDBusMessage reply;
+    {
+        ScopedDumpable dumpable; // как и для Register: портал читает /proc/<pid>/root
+        reply = bus.call(msg, QDBus::Block, static_cast<int>(qMax<qint64>(1, deadline.remainingTime())));
+        if (!dumpable.restore())
+            return fail(qtTrId("error.capture.tracer_attached"));
+    }
     if (reply.type() == QDBusMessage::ErrorMessage) {
         QString text = reply.errorMessage();
         if (text.isEmpty())

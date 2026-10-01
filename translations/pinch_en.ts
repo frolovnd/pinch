@@ -251,5 +251,9 @@
         <source>the portal returned something that is not a regular file</source>
         <translation>the portal returned something that is not a regular file</translation>
     </message>
+    <message id="error.capture.tracer_attached">
+        <source>another process is tracing pinch (ptrace), so the screenshot was aborted</source>
+        <translation>another process is tracing pinch (ptrace), so the screenshot was aborted</translation>
+    </message>
 </context>
 </TS>

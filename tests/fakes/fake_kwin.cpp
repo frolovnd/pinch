@@ -1,5 +1,8 @@
 // Поддельный KWin: имя org.kde.KWin и org.kde.KWin.ScreenShot2 на сессионной шине. Режим — аргумент командной строки:
 // ok | deny | short | badformat. Запускается отдельным процессом (приватная шина из tests/dbustestbus.h).
+// Как настоящий KWin, опознаёт вызывающего по /proc/<pid>/exe (fakeauth.h): недампируемому — NoAuthorized.
+#include "fakeauth.h"
+
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -23,7 +26,7 @@ public slots:
     QVariantMap CaptureWorkspace(const QVariantMap& options, const QDBusUnixFileDescriptor& pipe)
     {
         Q_UNUSED(options);
-        if (m_mode == QLatin1String("deny")) {
+        if (m_mode == QLatin1String("deny") || !fakeCallerExeReadable(connection(), message())) {
             sendErrorReply(QStringLiteral("org.kde.KWin.ScreenShot2.Error.NoAuthorized"),
                            QStringLiteral("The process is not authorized to take a screenshot"));
             return {};

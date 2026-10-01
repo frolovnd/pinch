@@ -1,5 +1,8 @@
 // Поддельный xdg-desktop-portal: org.freedesktop.portal.Desktop, интерфейс org.freedesktop.portal.Screenshot.
 // Режим и путь к картинке — аргументы командной строки: <mode> <imagePath>; mode: ok | deny | symlink | silent | fifo | host | http.
+// Как настоящий портал, опознаёт вызывающего по /proc/<pid>/root (fakeauth.h): недампируемому — AccessDenied.
+#include "fakeauth.h"
+
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -23,6 +26,11 @@ public slots:
     QDBusObjectPath Screenshot(const QString& parent, const QVariantMap& options)
     {
         Q_UNUSED(parent);
+        if (!fakeCallerRootOpenable(connection(), message())) {
+            sendErrorReply(QStringLiteral("org.freedesktop.DBus.Error.AccessDenied"),
+                           QStringLiteral("Unable to open /proc/<pid>/root of the caller"));
+            return {};
+        }
         QString sender = message().service();
         sender.remove(QLatin1Char(':'));
         sender.replace(QLatin1Char('.'), QLatin1Char('_'));

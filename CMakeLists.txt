@@ -65,6 +65,7 @@ add_library(pinch_core STATIC
     src/screencopy.h src/screencopy.cpp
     src/kwincapture.h src/kwincapture.cpp
     src/portalcapture.h src/portalcapture.cpp
+    src/dumpable.h src/dumpable.cpp
 )
 # Иконки окна встроены в бинарь (для диалогов и заголовков); установка hicolor — ниже.
 qt_add_resources(pinch_core "icons" PREFIX "/icons" BASE "data/icons/hicolor" FILES

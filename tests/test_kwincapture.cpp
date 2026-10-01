@@ -3,6 +3,13 @@
 #include "dbustestbus.h"
 #include "i18n.h"
 #include "kwincapture.h"
+#include "testtracer.h"
+
+#include <QDBusUnixFileDescriptor>
+
+#include <fcntl.h>
+#include <sys/prctl.h>
+#include <unistd.h>
 
 class TestKWinCapture : public QObject {
     Q_OBJECT
@@ -17,6 +24,7 @@ private slots:
     }
     void cleanup()
     {
+        prctl(PR_SET_DUMPABLE, 1, 0, 0, 0); // тесты ниже делают процесс недампируемым, как pinch
         stopFake();
         m_bus.reset();
     }
@@ -43,6 +51,53 @@ private slots:
         QVERIFY2(cap.has_value(), qPrintable(error));
         QCOMPARE(cap->origin, QPoint(100, 50));
         QCOMPARE(cap->screens, (QVector<QRect>{QRect(0, 0, 4, 1), QRect(0, 1, 4, 1)}));
+    }
+
+    // Поддельный KWin, как настоящий, читает /proc/<pid>/exe вызывающего: недампируемому процессу — отказ.
+    void fakeRejectsNonDumpableCaller()
+    {
+        runFake(QStringLiteral("ok"));
+        QDBusConnection c = m_bus->connect(QStringLiteral("t-raw"));
+        int fds[2];
+        QCOMPARE(::pipe2(fds, O_CLOEXEC), 0);
+        QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/ScreenShot2"),
+                                                          QStringLiteral("org.kde.KWin.ScreenShot2"),
+                                                          QStringLiteral("CaptureWorkspace"));
+        msg << QVariantMap() << QVariant::fromValue(QDBusUnixFileDescriptor(fds[1]));
+        QCOMPARE(prctl(PR_SET_DUMPABLE, 0, 0, 0, 0), 0);
+        const QDBusMessage reply = c.call(msg, QDBus::Block, 5000);
+        ::close(fds[0]);
+        ::close(fds[1]);
+        QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
+        QCOMPARE(reply.errorName(), QStringLiteral("org.kde.KWin.ScreenShot2.Error.NoAuthorized"));
+    }
+
+    // pinch недампируемый (main): на время вызова CaptureWorkspace ScopedDumpable открывает окно, затем закрывает.
+    void capturesWhenNotDumpable()
+    {
+        runFake(QStringLiteral("ok"));
+        QCOMPARE(prctl(PR_SET_DUMPABLE, 0, 0, 0, 0), 0);
+        QString error;
+        const auto cap = captureWithKWin(m_bus->connect(QStringLiteral("t-nodump")), {QRect(0, 0, 4, 2)}, &error);
+        QCOMPARE(prctl(PR_GET_DUMPABLE, 0, 0, 0, 0), 0); // окно закрыто
+        QVERIFY2(cap.has_value(), qPrintable(error));
+        QCOMPARE(cap->image.pixel(3, 1), qRgb(0, 0xff, 0));
+    }
+
+    // Трассировщик подключился ещё до PR_SET_DUMPABLE=0 (запуск под strace без PINCH_ALLOW_TRACE): окно не открывается,
+    // снимок прерывается с понятной ошибкой.
+    void abortsWhenTraced()
+    {
+        runFake(QStringLiteral("ok"));
+        TestTracer tracer;
+        if (!tracer.attach(::getpid()))
+            QSKIP("ptrace is not permitted in this environment", "");
+        QCOMPARE(prctl(PR_SET_DUMPABLE, 0, 0, 0, 0), 0);
+        QString error;
+        const bool captured = captureWithKWin(m_bus->connect(QStringLiteral("t-traced")), {QRect(0, 0, 4, 2)}, &error).has_value();
+        tracer.release();
+        QVERIFY(!captured);
+        QCOMPARE(error, qtTrId("error.capture.tracer_attached"));
     }
 
     void notAvailableWithoutService()

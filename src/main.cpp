@@ -30,6 +30,8 @@ void saveStyle(const OverlayController& controller)
 int main(int argc, char** argv)
 {
     // Снимок в памяти не должен попасть в core-дамп или читаться через ptrace другими процессами пользователя.
+    // Исключение — только сами вызовы D-Bus к KWin и порталу: они опознают вызывающего через /proc/<pid>, и на время
+    // вызова процесс становится дампируемым (ScopedDumpable, src/dumpable.h).
     // PINCH_ALLOW_TRACE=1 (ровно «1») — осознанное исключение пользователя для запуска под strace (иначе strace не читает строки).
     // Предупреждение выводим позже: до установки переводов qtTrId ещё не умеет находить текст.
     const bool dumpableFailed = qgetenv("PINCH_ALLOW_TRACE") != "1" && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0;

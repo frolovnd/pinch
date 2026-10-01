@@ -1,4 +1,5 @@
 #include "kwincapture.h"
+#include "dumpable.h"
 #include "rawimage.h"
 
 #include <QCoreApplication>
@@ -139,11 +140,17 @@ std::optional<Capture> captureWithKWin(QDBusConnection bus, const QVector<QRect>
     std::thread reader(readAll, fds[0], &read);
 
     QDBusMessage reply;
+    bool traced = false;
     {
         QDBusMessage msg = QDBusMessage::createMethodCall(SERVICE, PATH, INTERFACE, QStringLiteral("CaptureWorkspace"));
         const QVariantMap options{{QStringLiteral("include-cursor"), false}, {QStringLiteral("native-resolution"), false}};
         msg << options << QVariant::fromValue(QDBusUnixFileDescriptor(fds[1]));
-        reply = bus.call(msg, QDBus::Block, TIMEOUT_MS);
+        {
+            // KWin опознаёт вызывающего по /proc/<pid>/exe: на время вызова процесс дампируемый (см. dumpable.h).
+            ScopedDumpable dumpable;
+            reply = bus.call(msg, QDBus::Block, TIMEOUT_MS);
+            traced = !dumpable.restore();
+        }
         // Наш конец канала закрываем сразу после вызова; копия в сообщении закроется вместе с ним (конец блока),
         // после чего читатель увидит EOF, как только закроет свой конец и KWin.
         ::close(fds[1]);
@@ -151,6 +158,8 @@ std::optional<Capture> captureWithKWin(QDBusConnection bus, const QVector<QRect>
     reader.join();
     ::close(fds[0]);
 
+    if (traced)
+        return fail(qtTrId("error.capture.tracer_attached"));
     if (reply.type() == QDBusMessage::ErrorMessage) {
         QString text = reply.errorMessage();
         if (text.isEmpty())

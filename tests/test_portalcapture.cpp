@@ -3,7 +3,9 @@
 #include "dbustestbus.h"
 #include "i18n.h"
 #include "portalcapture.h"
+#include "testtracer.h"
 
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utime.h>
@@ -13,6 +15,7 @@ class TestPortalCapture : public QObject {
 private slots:
     // Язык зафиксирован, чтобы текст ошибок проверялся по ключам и не зависел от LANG.
     void initTestCase() { installTranslations(*QCoreApplication::instance(), QLocale(QStringLiteral("en_US"))); }
+    void cleanup() { prctl(PR_SET_DUMPABLE, 1, 0, 0, 0); } // тесты ниже делают процесс недампируемым, как pinch
 
     void requestPath()
     {
@@ -69,6 +72,71 @@ private slots:
         QVERIFY2(cap.has_value(), qPrintable(error));
         QCOMPARE(cap->image.pixel(0, 0), qRgb(0, 0, 0xff));
         QVERIFY(!QFile::exists(img)); // свежий свой файл удалён
+        fake.terminate();
+        fake.waitForFinished(3000);
+    }
+
+    // Поддельный портал, как настоящий, открывает /proc/<pid>/root вызывающего: недампируемому процессу — отказ.
+    void fakeRejectsNonDumpableCaller()
+    {
+        QTemporaryDir dir;
+        DBusTestBus bus;
+        QVERIFY(bus.start());
+        QProcess fake;
+        QVERIFY(bus.startService(fake, QStringLiteral(FAKE_PORTAL_PATH), {QStringLiteral("ok"), dir.filePath(QStringLiteral("x.png"))},
+                                 QStringLiteral("org.freedesktop.portal.Desktop")));
+        QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.portal.Desktop"),
+                                                          QStringLiteral("/org/freedesktop/portal/desktop"),
+                                                          QStringLiteral("org.freedesktop.portal.Screenshot"),
+                                                          QStringLiteral("Screenshot"));
+        msg << QString() << QVariantMap{{QStringLiteral("handle_token"), QStringLiteral("raw")}};
+        QDBusConnection c = bus.connect(QStringLiteral("p-raw"));
+        QCOMPARE(prctl(PR_SET_DUMPABLE, 0, 0, 0, 0), 0);
+        const QDBusMessage reply = c.call(msg, QDBus::Block, 5000);
+        QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
+        QCOMPARE(reply.errorName(), QStringLiteral("org.freedesktop.DBus.Error.AccessDenied"));
+        fake.terminate();
+        fake.waitForFinished(3000);
+    }
+
+    // pinch недампируемый (main): на время вызовов портала ScopedDumpable открывает окно, затем закрывает.
+    void capturesWhenNotDumpable()
+    {
+        QTemporaryDir dir;
+        const QString img = dir.filePath(QStringLiteral("portal.png"));
+        DBusTestBus bus;
+        QVERIFY(bus.start());
+        QProcess fake;
+        QVERIFY(bus.startService(fake, QStringLiteral(FAKE_PORTAL_PATH), {QStringLiteral("ok"), img},
+                                 QStringLiteral("org.freedesktop.portal.Desktop")));
+        QCOMPARE(prctl(PR_SET_DUMPABLE, 0, 0, 0, 0), 0);
+        QString error;
+        const auto cap = captureWithPortal(bus.connect(QStringLiteral("p-nodump")), {QRect(0, 0, 4, 2)}, &error);
+        QCOMPARE(prctl(PR_GET_DUMPABLE, 0, 0, 0, 0), 0); // окно закрыто
+        QVERIFY2(cap.has_value(), qPrintable(error));
+        QCOMPARE(cap->image.pixel(0, 0), qRgb(0, 0, 0xff));
+        fake.terminate();
+        fake.waitForFinished(3000);
+    }
+
+    // Трассировщик подключился ещё до PR_SET_DUMPABLE=0: окно не открывается, снимок прерывается с понятной ошибкой.
+    void abortsWhenTraced()
+    {
+        QTemporaryDir dir;
+        DBusTestBus bus;
+        QVERIFY(bus.start());
+        QProcess fake;
+        QVERIFY(bus.startService(fake, QStringLiteral(FAKE_PORTAL_PATH), {QStringLiteral("ok"), dir.filePath(QStringLiteral("x.png"))},
+                                 QStringLiteral("org.freedesktop.portal.Desktop")));
+        TestTracer tracer;
+        if (!tracer.attach(::getpid()))
+            QSKIP("ptrace is not permitted in this environment", "");
+        QCOMPARE(prctl(PR_SET_DUMPABLE, 0, 0, 0, 0), 0);
+        QString error;
+        const bool captured = captureWithPortal(bus.connect(QStringLiteral("p-traced")), {QRect(0, 0, 4, 2)}, &error).has_value();
+        tracer.release();
+        QVERIFY(!captured);
+        QCOMPARE(error, qtTrId("error.capture.tracer_attached"));
         fake.terminate();
         fake.waitForFinished(3000);
     }
