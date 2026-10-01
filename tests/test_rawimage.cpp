@@ -1,4 +1,5 @@
 #include <QtTest>
+#include <cstring>
 
 #include "rawimage.h"
 
@@ -23,7 +24,7 @@ private slots:
     void xrgbForcesAlpha()
     {
         const QByteArray b = buffer({0x00112233, 0x00445566, 0x00778899, 0x00aabbcc});
-        const auto img = imageFromShm(reinterpret_cast<const uchar*>(b.constData()), 2, 2, 12, ShmFormat::XRGB8888, false);
+        const auto img = imageFromShm(reinterpret_cast<const uchar*>(b.constData()), b.size(), 2, 2, 12, ShmFormat::XRGB8888, false);
         QVERIFY(img.has_value());
         QCOMPARE(img->format(), QImage::Format_RGB32);
         QCOMPARE(img->pixel(0, 0), qRgb(0x11, 0x22, 0x33));
@@ -34,7 +35,7 @@ private slots:
     {
         // XBGR8888: младший байт — R.
         const QByteArray b = buffer({0x00332211, 0, 0, 0});
-        const auto img = imageFromShm(reinterpret_cast<const uchar*>(b.constData()), 2, 2, 12, ShmFormat::XBGR8888, false);
+        const auto img = imageFromShm(reinterpret_cast<const uchar*>(b.constData()), b.size(), 2, 2, 12, ShmFormat::XBGR8888, false);
         QVERIFY(img.has_value());
         QCOMPARE(img->pixel(0, 0), qRgb(0x11, 0x22, 0x33));
     }
@@ -42,7 +43,7 @@ private slots:
     void yInvertFlips()
     {
         const QByteArray b = buffer({0x00ff0000, 0x00ff0000, 0x000000ff, 0x000000ff});
-        const auto img = imageFromShm(reinterpret_cast<const uchar*>(b.constData()), 2, 2, 12, ShmFormat::ARGB8888, true);
+        const auto img = imageFromShm(reinterpret_cast<const uchar*>(b.constData()), b.size(), 2, 2, 12, ShmFormat::ARGB8888, true);
         QVERIFY(img.has_value());
         QCOMPARE(img->pixel(0, 0), qRgb(0, 0, 0xff));
         QCOMPARE(img->pixel(0, 1), qRgb(0xff, 0, 0));
@@ -52,10 +53,10 @@ private slots:
     {
         const QByteArray b = buffer({0, 0, 0, 0});
         const auto* p = reinterpret_cast<const uchar*>(b.constData());
-        QVERIFY(!imageFromShm(p, 2, 2, 12, 0x12345678, false).has_value()); // неизвестный формат
-        QVERIFY(!imageFromShm(p, 2, 2, 4, ShmFormat::XRGB8888, false).has_value()); // stride < width*4
-        QVERIFY(!imageFromShm(p, 0, 2, 12, ShmFormat::XRGB8888, false).has_value());
-        QVERIFY(!imageFromShm(nullptr, 2, 2, 12, ShmFormat::XRGB8888, false).has_value());
+        QVERIFY(!imageFromShm(p, b.size(), 2, 2, 12, 0x12345678, false).has_value()); // неизвестный формат
+        QVERIFY(!imageFromShm(p, b.size(), 2, 2, 4, ShmFormat::XRGB8888, false).has_value()); // stride < width*4
+        QVERIFY(!imageFromShm(p, b.size(), 0, 2, 12, ShmFormat::XRGB8888, false).has_value());
+        QVERIFY(!imageFromShm(nullptr, b.size(), 2, 2, 12, ShmFormat::XRGB8888, false).has_value());
     }
 
     void kwinFormats()
@@ -91,6 +92,91 @@ private slots:
         const QVector<NamedScreen> screens = {{QStringLiteral("A"), QRect(0, 0, 10, 10)}, {QStringLiteral("B"), QRect(10, 0, 10, 10)}};
         QCOMPARE(matchScreens({QString(), QStringLiteral("X")}, screens), (QVector<QRect>{QRect(0, 0, 10, 10), QRect(10, 0, 10, 10)}));
         QVERIFY(matchScreens({QStringLiteral("X")}, screens).isEmpty());
+    }
+
+    void deepCopyKWin()
+    {
+        // Проверка, что imageFromKWin возвращает глубокую копию (не shallow copy).
+        // После очистки исходного буфера пиксели остаются доступны.
+        QByteArray b = buffer({0xff112233, 0xff445566, 0xff778899, 0xffaabbcc});
+        const auto img = imageFromKWin(b, 2, 2, 12, QImage::Format_RGB32);
+        QVERIFY(img.has_value());
+        const QRgb pixel00 = img->pixel(0, 0);
+        const QRgb pixel10 = img->pixel(1, 0);
+
+        // Очистка исходного буфера (должна не повлиять на скопированное изображение).
+        b.clear();
+
+        // Проверка, что пиксели остались неизменны.
+        QCOMPARE(img->pixel(0, 0), pixel00);
+        QCOMPARE(img->pixel(1, 0), pixel10);
+        QCOMPARE(img->pixel(0, 0), qRgb(0x11, 0x22, 0x33));
+        QCOMPARE(img->pixel(1, 0), qRgb(0x44, 0x55, 0x66));
+    }
+
+    void rejectsHugeDimensions()
+    {
+        // Проверка, что очень большие размеры отклоняются.
+        const QByteArray b = buffer({0, 0, 0, 0});
+        const auto* p = reinterpret_cast<const uchar*>(b.constData());
+
+        // Для imageFromShm.
+        QVERIFY(!imageFromShm(p, b.size(), 100000, 2, 400000, ShmFormat::XRGB8888, false).has_value());
+        QVERIFY(!imageFromShm(p, b.size(), 2, 100000, 12, ShmFormat::XRGB8888, false).has_value());
+
+        // Для imageFromKWin.
+        QVERIFY(!imageFromKWin(b, 100000, 2, 400000, QImage::Format_RGB32).has_value());
+        QVERIFY(!imageFromKWin(b, 2, 100000, 12, QImage::Format_RGB32).has_value());
+    }
+
+    void rejectsStrideNotMultiple4()
+    {
+        // Проверка, что stride, не кратный 4, отклоняется.
+        const QByteArray b = buffer({0, 0, 0, 0});
+        const auto* p = reinterpret_cast<const uchar*>(b.constData());
+
+        // Для imageFromShm: stride = 13 (не кратен 4).
+        QVERIFY(!imageFromShm(p, b.size(), 2, 2, 13, ShmFormat::XRGB8888, false).has_value());
+
+        // Для imageFromKWin: stride = 13 (не кратен 4).
+        QVERIFY(!imageFromKWin(b, 2, 2, 13, QImage::Format_RGB32).has_value());
+    }
+
+    void rejectsInsufficientDataSize()
+    {
+        // Проверка, что недостаточный размер буфера отклоняется.
+        const QByteArray b = buffer({0x00112233, 0x00445566, 0x00778899, 0x00aabbcc});
+        const auto* p = reinterpret_cast<const uchar*>(b.constData());
+
+        // stride * height = 12 * 2 = 24, но даём только 20 байт.
+        QVERIFY(!imageFromShm(p, 20, 2, 2, 12, ShmFormat::XRGB8888, false).has_value());
+    }
+
+    void rejectsZeroHeight()
+    {
+        // Проверка, что height <= 0 отклоняется.
+        const QByteArray b = buffer({0, 0, 0, 0});
+        const auto* p = reinterpret_cast<const uchar*>(b.constData());
+
+        // Для imageFromShm.
+        QVERIFY(!imageFromShm(p, b.size(), 2, 0, 12, ShmFormat::XRGB8888, false).has_value());
+        QVERIFY(!imageFromShm(p, b.size(), 2, -1, 12, ShmFormat::XRGB8888, false).has_value());
+
+        // Для imageFromKWin.
+        QVERIFY(!imageFromKWin(b, 2, 0, 12, QImage::Format_RGB32).has_value());
+        QVERIFY(!imageFromKWin(b, 2, -1, 12, QImage::Format_RGB32).has_value());
+    }
+
+    void yInvertWithXBGR()
+    {
+        // Проверка, что yInvert и XBGR8888 работают вместе.
+        const QByteArray b = buffer({0x00332211, 0x00332211, 0x00aabbcc, 0x00aabbcc});
+        const auto img = imageFromShm(reinterpret_cast<const uchar*>(b.constData()), b.size(), 2, 2, 12, ShmFormat::XBGR8888, true);
+        QVERIFY(img.has_value());
+        // Без инверсии: (0,0) был бы 0x00332211, с инверсией — (0,1).
+        // Без инверсии: (0,1) был бы 0x00aabbcc, с инверсией — (0,0).
+        QCOMPARE(img->pixel(0, 0), qRgb(0xcc, 0xbb, 0xaa)); // из буфера (0,1)
+        QCOMPARE(img->pixel(0, 1), qRgb(0x11, 0x22, 0x33)); // из буфера (0,0)
     }
 };
 

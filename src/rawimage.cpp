@@ -4,15 +4,36 @@
 #include <cstring>
 #include <iterator>
 
-std::optional<QImage> imageFromShm(const uchar* data, int width, int height, int stride, quint32 format, bool yInvert)
+std::optional<QImage> imageFromShm(const uchar* data, qsizetype dataSize, int width, int height, int stride, quint32 format, bool yInvert)
 {
-    if (!data || width <= 0 || height <= 0 || stride < width * 4)
+    // Базовые проверки: данные, размеры и stride.
+    if (!data || width <= 0 || height <= 0 || stride <= 0)
         return std::nullopt;
+    if (width > MAX_SCREEN_DIMENSION || height > MAX_SCREEN_DIMENSION)
+        return std::nullopt;
+    if (stride % 4 != 0)
+        return std::nullopt;
+
+    // Проверка stride на переполнение и соответствие width.
+    if (qint64(width) * 4 > stride)
+        return std::nullopt;
+
+    // Проверка dataSize на переполнение и соответствие stride*height.
+    qint64 needed = qint64(stride) * height;
+    if (needed > dataSize)
+        return std::nullopt;
+
+    // Проверка формата.
     const bool xrgb = format == ShmFormat::XRGB8888 || format == ShmFormat::ARGB8888;
     const bool xbgr = format == ShmFormat::XBGR8888 || format == ShmFormat::ABGR8888;
     if (!xrgb && !xbgr)
         return std::nullopt;
+
+    // Создание выходного изображения (проверка на переполнение при выделении).
     QImage out(width, height, QImage::Format_RGB32);
+    if (out.isNull())
+        return std::nullopt;
+
     for (int y = 0; y < height; ++y) {
         const uchar* srcRow = data + qsizetype(yInvert ? height - 1 - y : y) * stride;
         auto* dst = reinterpret_cast<QRgb*>(out.scanLine(y));
@@ -33,11 +54,36 @@ std::optional<QImage> imageFromKWin(const QByteArray& data, int width, int heigh
                                    QImage::Format_RGBX8888, QImage::Format_RGBA8888};
     if (std::find(std::begin(kAllowed), std::end(kAllowed), qimageFormat) == std::end(kAllowed))
         return std::nullopt;
-    if (width <= 0 || height <= 0 || stride < width * 4 || data.size() < qsizetype(stride) * height)
+
+    // Базовые проверки: размеры и stride.
+    if (width <= 0 || height <= 0 || stride <= 0)
         return std::nullopt;
+    if (width > MAX_SCREEN_DIMENSION || height > MAX_SCREEN_DIMENSION)
+        return std::nullopt;
+    if (stride % 4 != 0)
+        return std::nullopt;
+
+    // Проверка stride на переполнение и соответствие width.
+    if (qint64(width) * 4 > stride)
+        return std::nullopt;
+
+    // Проверка dataSize на переполнение и соответствие stride*height.
+    qint64 needed = qint64(stride) * height;
+    if (needed > data.size())
+        return std::nullopt;
+
+    // Создание представления изображения (проверка на переполнение при выделении).
     const QImage view(reinterpret_cast<const uchar*>(data.constData()), width, height, stride,
                       static_cast<QImage::Format>(qimageFormat));
-    return view.convertToFormat(QImage::Format_RGB32); // глубокая копия
+    if (view.isNull())
+        return std::nullopt;
+
+    // Глубокая копия: всегда через copy() для RGB32 (convertToFormat возвращает shallow copy),
+    // иначе convertToFormat + copy() для безопасности.
+    const QImage converted = view.convertToFormat(QImage::Format_RGB32);
+    if (converted.isNull())
+        return std::nullopt;
+    return converted.copy();
 }
 
 QVector<QRect> matchScreens(const QStringList& outputNames, const QVector<NamedScreen>& screens)

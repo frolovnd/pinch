@@ -14,13 +14,17 @@ constexpr quint32 ABGR8888 = 0x34324241;
 constexpr quint32 XBGR8888 = 0x34324258;
 }
 
-// Буфер wl_shm → глубокая копия в Format_RGB32 (альфа всегда 0xff). nullopt: неизвестный формат,
-// width/height <= 0, stride < width*4, data == nullptr.
-std::optional<QImage> imageFromShm(const uchar* data, int width, int height, int stride, quint32 format, bool yInvert);
+// Максимальный размер измерения экрана (санитарный лимит: экраны никогда не больше).
+constexpr int MAX_SCREEN_DIMENSION = 32768;
 
-// Ответ KWin ScreenShot2 → Format_RGB32. Разрешены значения QImage::Format: RGB32, ARGB32,
+// Буфер wl_shm → глубокая копия в Format_RGB32 (альфа всегда 0xff). nullopt: неизвестный формат,
+// width/height <= 0, stride < width*4, stride % 4 != 0, dataSize недостаточно, огромные размеры,
+// data == nullptr, переполнение при вычислении размеров.
+std::optional<QImage> imageFromShm(const uchar* data, qsizetype dataSize, int width, int height, int stride, quint32 format, bool yInvert);
+
+// Ответ KWin ScreenShot2 → Format_RGB32 (глубокая копия). Разрешены значения QImage::Format: RGB32, ARGB32,
 // ARGB32_Premultiplied, RGBX8888, RGBA8888. nullopt: иной формат, размеры <= 0, stride < width*4,
-// data.size() < stride*height.
+// stride % 4 != 0, огромные размеры, data.size() < stride*height, переполнение при вычислении размеров.
 std::optional<QImage> imageFromKWin(const QByteArray& data, int width, int height, int stride, int qimageFormat);
 
 struct NamedScreen {
