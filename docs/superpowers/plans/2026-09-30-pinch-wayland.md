@@ -314,7 +314,7 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
   namespace ShmFormat { constexpr quint32 ARGB8888 = 0, XRGB8888 = 1, ABGR8888 = 0x34324241, XBGR8888 = 0x34324258; }
   // Буфер wl_shm → глубокая копия в Format_RGB32 (альфа всегда 0xff). nullopt: неизвестный формат,
   // width/height <= 0, stride < width*4, data == nullptr.
-  std::optional<QImage> imageFromShm(const uchar* data, int width, int height, int stride, quint32 format, bool yInvert);
+  std::optional<QImage> imageFromShm(const uchar* data, qsizetype dataSize, int width, int height, int stride, quint32 format, bool yInvert);
   // Ответ KWin ScreenShot2 → Format_RGB32. Разрешены значения QImage::Format: RGB32, ARGB32,
   // ARGB32_Premultiplied, RGBX8888, RGBA8888. nullopt: иной формат, размеры <= 0, stride < width*4,
   // data.size() < stride*height.
@@ -527,7 +527,7 @@ QVector<QRect> matchScreens(const QStringList& outputNames, const QVector<NamedS
 2. Реестр: собрать `wl_output` (bind версии `min(4, advertised)`; при v4 — слушатель `name`), `wl_shm` (v1), `zwlr_screencopy_manager_v1` (v1…3, достаточно v1). `wl_display_roundtrip` дважды (глобалы, затем события `name`). Нет менеджера или `wl_shm` → ошибка.
 3. Для каждого выхода: `zwlr_screencopy_manager_v1_capture_output(manager, 0 /*без курсора*/, output)`; слушатель кадра: `buffer(format, width, height, stride)` → запомнить; `flags` → `y_invert`; `buffer_done` (v3) игнорировать; `ready` → успех; `failed` → ошибка. После `buffer`: `memfd_create("pinch-screencopy", MFD_CLOEXEC)`, `ftruncate(stride*height)`, `mmap(PROT_READ|PROT_WRITE, MAP_SHARED)`, `wl_shm_create_pool` → `create_buffer` → `zwlr_screencopy_frame_v1_copy(frame, buffer)`.
 4. Цикл `wl_display_dispatch` с общим тайм-аутом 5 с (через `poll` на `wl_display_get_fd` с `wl_display_prepare_read`/`read_events`/`dispatch_pending`), пока все кадры не завершены.
-5. Каждый кадр → `imageFromShm(...)` (nullopt → ошибка «неподдерживаемый формат 0x…»).
+5. Каждый кадр → `imageFromShm(data, mappedSize, width, height, stride, format, yInvert)` — `mappedSize` = размер отображённого memfd (nullopt → ошибка «неподдерживаемый формат или размер буфера»).
 6. Геометрии: `matchScreens(имена выходов, screens)`; пусто → ошибка «не удалось сопоставить выходы Wayland с мониторами». Затем `composeScreens` из пар (картинка, геометрия).
 7. Освобождение всего в любом случае (деструкторы RAII).
 
