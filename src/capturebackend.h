@@ -14,14 +14,14 @@ enum class CaptureMethod { X11, Screencopy, KWin, Portal };
 
 struct CaptureEnvironment {
     QString platformName;            // QGuiApplication::platformName()
-    bool hasScreencopy = false;      // Задача 3 заполняет
+    bool hasScreencopy = false;      // композитор объявляет zwlr_screencopy_manager_v1
     bool hasKWinScreenShot2 = false; // Задача 4 заполняет
     QString forced;                  // PINCH_CAPTURE
 };
 
 QVector<CaptureMethod> captureOrder(const CaptureEnvironment& env);
 QString captureMethodName(CaptureMethod m); // "x11" | "screencopy" | "kwin" | "portal"
-CaptureEnvironment detectEnvironment();     // пока: platformName + forced
+CaptureEnvironment detectEnvironment();     // platformName, forced; под Wayland — hasScreencopy
 
 // Пробует методы из captureOrder; errors получает строки «<метод>: <причина>» (локализованные).
 // Методы, ещё не реализованные в сборке, дают ошибку «метод недоступен в этой сборке».

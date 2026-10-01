@@ -24,6 +24,9 @@ pinch_add_test(test_overlay)
 pinch_add_test(test_appicon)
 pinch_add_test(test_i18n)
 pinch_add_test(test_rawimage)
+if(PINCH_WAYLAND)
+    pinch_add_test(test_screencopy_live)
+endif()
 
 # Проверка согласованности ключей локализации и таблиц (без сборки).
 add_test(NAME check_i18n

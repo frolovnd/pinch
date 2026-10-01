@@ -155,5 +155,41 @@
         <source>unknown method PINCH_CAPTURE=%1 (allowed: x11, screencopy, kwin, portal)</source>
         <translation>неизвестный метод PINCH_CAPTURE=%1 (допустимо: x11, screencopy, kwin, portal)</translation>
     </message>
+    <message id="error.capture.wayland.not_built">
+        <source>this build has no Wayland support</source>
+        <translation>сборка без поддержки Wayland</translation>
+    </message>
+    <message id="error.capture.wayland.no_connection">
+        <source>no connection to the Wayland compositor</source>
+        <translation>нет соединения с Wayland</translation>
+    </message>
+    <message id="error.capture.wayland.connection_error">
+        <source>Wayland connection error: %1</source>
+        <translation>ошибка соединения с Wayland: %1</translation>
+    </message>
+    <message id="error.capture.wayland.timeout">
+        <source>the Wayland compositor did not respond within %1 s</source>
+        <translation>композитор Wayland не ответил за %1 с</translation>
+    </message>
+    <message id="error.capture.screencopy.unsupported">
+        <source>the compositor does not offer wlr-screencopy (zwlr_screencopy_manager_v1) or wl_shm</source>
+        <translation>композитор не предоставляет wlr-screencopy (zwlr_screencopy_manager_v1) или wl_shm</translation>
+    </message>
+    <message id="error.capture.screencopy.bad_buffer">
+        <source>unsupported format or buffer size</source>
+        <translation>неподдерживаемый формат или размер буфера</translation>
+    </message>
+    <message id="error.capture.screencopy.alloc_failed">
+        <source>could not allocate a buffer for the frame: %1</source>
+        <translation>не удалось выделить буфер для кадра: %1</translation>
+    </message>
+    <message id="error.capture.screencopy.frame_failed">
+        <source>the compositor failed to copy the frame</source>
+        <translation>композитор не смог скопировать кадр</translation>
+    </message>
+    <message id="error.capture.screencopy.no_match">
+        <source>could not match Wayland outputs to monitors</source>
+        <translation>не удалось сопоставить выходы Wayland с мониторами</translation>
+    </message>
 </context>
 </TS>

@@ -1,7 +1,9 @@
 #include "capturebackend.h"
+#include "screencopy.h"
 
 #include <QCoreApplication>
 #include <QGuiApplication>
+#include <QScreen>
 
 QString captureMethodName(CaptureMethod m)
 {
@@ -38,6 +40,8 @@ CaptureEnvironment detectEnvironment()
     CaptureEnvironment env;
     env.platformName = QGuiApplication::platformName();
     env.forced = QString::fromLocal8Bit(qgetenv("PINCH_CAPTURE")).trimmed().toLower();
+    if (env.platformName == QLatin1String("wayland"))
+        env.hasScreencopy = screencopyAvailable();
     return env;
 }
 
@@ -75,6 +79,13 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
             *error = qtTrId("error.capture.qt_grab");
         return c;
     };
-    // Задачи 3–5 добавляют сюда Screencopy, KWin, Portal.
+    fns[CaptureMethod::Screencopy] = [](QString* error) {
+        QVector<NamedScreen> screens;
+        const QList<QScreen*> qscreens = QGuiApplication::screens();
+        for (QScreen* s : qscreens)
+            screens << NamedScreen{s->name(), s->geometry()};
+        return captureWithScreencopy(screens, error);
+    };
+    // Задачи 4–5 добавляют сюда KWin, Portal.
     return captureScreensWith(order, fns, errors);
 }

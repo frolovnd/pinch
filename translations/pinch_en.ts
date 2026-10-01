@@ -155,5 +155,41 @@
         <source>unknown method PINCH_CAPTURE=%1 (allowed: x11, screencopy, kwin, portal)</source>
         <translation>unknown method PINCH_CAPTURE=%1 (allowed: x11, screencopy, kwin, portal)</translation>
     </message>
+    <message id="error.capture.wayland.not_built">
+        <source>this build has no Wayland support</source>
+        <translation>this build has no Wayland support</translation>
+    </message>
+    <message id="error.capture.wayland.no_connection">
+        <source>no connection to the Wayland compositor</source>
+        <translation>no connection to the Wayland compositor</translation>
+    </message>
+    <message id="error.capture.wayland.connection_error">
+        <source>Wayland connection error: %1</source>
+        <translation>Wayland connection error: %1</translation>
+    </message>
+    <message id="error.capture.wayland.timeout">
+        <source>the Wayland compositor did not respond within %1 s</source>
+        <translation>the Wayland compositor did not respond within %1 s</translation>
+    </message>
+    <message id="error.capture.screencopy.unsupported">
+        <source>the compositor does not offer wlr-screencopy (zwlr_screencopy_manager_v1) or wl_shm</source>
+        <translation>the compositor does not offer wlr-screencopy (zwlr_screencopy_manager_v1) or wl_shm</translation>
+    </message>
+    <message id="error.capture.screencopy.bad_buffer">
+        <source>unsupported format or buffer size</source>
+        <translation>unsupported format or buffer size</translation>
+    </message>
+    <message id="error.capture.screencopy.alloc_failed">
+        <source>could not allocate a buffer for the frame: %1</source>
+        <translation>could not allocate a buffer for the frame: %1</translation>
+    </message>
+    <message id="error.capture.screencopy.frame_failed">
+        <source>the compositor failed to copy the frame</source>
+        <translation>the compositor failed to copy the frame</translation>
+    </message>
+    <message id="error.capture.screencopy.no_match">
+        <source>could not match Wayland outputs to monitors</source>
+        <translation>could not match Wayland outputs to monitors</translation>
+    </message>
 </context>
 </TS>
