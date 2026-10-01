@@ -44,7 +44,7 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
 
 Структура `Capture` (image, origin, screens) не меняется. Во всех бэкендах координаты — логические координаты рабочего стола из `QScreen::geometry()`; картинка каждого монитора масштабируется в свой логический прямоугольник (`composeScreens` уже это делает).
 
-Если все методы не удались — `QMessageBox::critical` с перечнем ошибок по-русски и выход с кодом 1.
+Если все методы не удались — `QMessageBox::critical` с перечнем ошибок (тексты — ключи `qtTrId`, таблицы `translations/pinch_{en,ru}.ts`, язык из системы, запасной — английский) и выход с кодом 1.
 
 ## 4. Бэкенды
 

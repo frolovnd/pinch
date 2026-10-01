@@ -1,5 +1,6 @@
 #include "appicon.h"
 #include "capture.h"
+#include "i18n.h"
 #include "instancelock.h"
 #include "output.h"
 #include "overlay.h"
@@ -8,9 +9,8 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCommandLineParser>
-#include <QLibraryInfo>
+#include <QLocale>
 #include <QPointer>
-#include <QTranslator>
 
 #include <sys/prctl.h>
 
@@ -28,8 +28,8 @@ int main(int argc, char** argv)
 {
     // Снимок в памяти не должен попасть в core-дамп или читаться через ptrace другими процессами пользователя.
     // PINCH_ALLOW_TRACE=1 (ровно «1») — осознанное исключение пользователя для запуска под strace (иначе strace не читает строки).
-    if (qgetenv("PINCH_ALLOW_TRACE") != "1" && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0)
-        qWarning("не удалось отключить дампы памяти (PR_SET_DUMPABLE)");
+    // Предупреждение выводим позже: до установки переводов qtTrId ещё не умеет находить текст.
+    const bool dumpableFailed = qgetenv("PINCH_ALLOW_TRACE") != "1" && prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0;
     // Без платформенной темы Qt не подгружает весь стек GTK/ATK и не ходит за настройками темы.
     QApplication::setDesktopSettingsAware(false);
     // Без SESSION_MANAGER Qt не открывает ICE-соединение с менеджером сессии X11.
@@ -38,10 +38,10 @@ int main(int argc, char** argv)
     qputenv("NO_AT_BRIDGE", "1");
 
     QApplication app(argc, argv);
-    // Стандартные диалоги Qt (Сохранить как, подтверждение перезаписи) — на русском; при неудаче молча остаёмся на английском.
-    QTranslator qtTranslator;
-    if (qtTranslator.load(QStringLiteral("qtbase_ru"), QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
-        QApplication::installTranslator(&qtTranslator);
+    // Язык — по системной локали (английский — запасной); до разбора командной строки, чтобы --help был переведён.
+    installTranslations(app, QLocale::system());
+    if (dumpableFailed)
+        qWarning("%s", qPrintable(qtTrId("log.dumpable")));
     QApplication::setApplicationName(QStringLiteral("pinch"));
     QApplication::setApplicationVersion(QStringLiteral(PINCH_VERSION));
     // Иконка окна по умолчанию: её получают и стандартные диалоги (Сохранить как, сообщения).
@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     QApplication::setQuitOnLastWindowClosed(false);
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("Скриншот области экрана с рисованием"));
+    parser.setApplicationDescription(qtTrId("app.description"));
     parser.addHelpOption();
     parser.addVersionOption();
     parser.process(app);
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
     InstanceLock lock;
     const QString lockPath = defaultLockPath();
     if (lockPath.isEmpty()) {
-        qWarning("XDG_RUNTIME_DIR не задан — работаю без блокировки экземпляра");
+        qWarning("%s", qPrintable(qtTrId("log.no_runtime_dir")));
     } else {
         switch (lock.tryAcquire(lockPath)) {
         case InstanceLock::Result::Acquired:
@@ -66,14 +66,14 @@ int main(int argc, char** argv)
         case InstanceLock::Result::Busy:
             return 0; // оверлей уже открыт
         case InstanceLock::Result::Error:
-            qWarning("не удалось взять блокировку %s — работаю без неё", qPrintable(lockPath));
+            qWarning("%s", qPrintable(qtTrId("log.lock_failed").arg(lockPath)));
             break;
         }
     }
 
     std::optional<Capture> capture = captureAllScreens();
     if (!capture) {
-        qCritical("не удалось снять экран");
+        qCritical("%s", qPrintable(qtTrId("log.capture_failed")));
         return 1;
     }
 

@@ -8,6 +8,7 @@
 #include <QCursor>
 #include <QDateTime>
 #include <QDir>
+#include <QCoreApplication>
 #include <QFileDialog>
 #include <QFontMetrics>
 #include <QKeyEvent>
@@ -390,10 +391,10 @@ void Overlay::saveAs()
     closeOverlay(); // окно поверх всех: иначе диалог окажется под ним
 
     // Собственный диалог Qt: суффикс .png добавляется до вопроса о перезаписи.
-    QFileDialog dialog(nullptr, QStringLiteral("Сохранить скриншот"));
+    QFileDialog dialog(nullptr, qtTrId("dialog.save.title"));
     dialog.setOption(QFileDialog::DontUseNativeDialog);
     dialog.setAcceptMode(QFileDialog::AcceptSave);
-    dialog.setNameFilter(QStringLiteral("PNG (*.png)"));
+    dialog.setNameFilter(qtTrId("dialog.save.filter"));
     dialog.setDefaultSuffix(QStringLiteral("png"));
     dialog.setDirectory(m_saveDir);
     dialog.selectFile(quickSaveFileName(QDateTime::currentDateTime(), 0));
@@ -405,7 +406,7 @@ void Overlay::saveAs()
     const QString path = dialog.selectedFiles().constFirst();
     const QByteArray png = encodePng(image);
     const WriteResult r = png.isEmpty()
-        ? WriteResult{WriteResult::Error, QStringLiteral("не удалось закодировать PNG")}
+        ? WriteResult{WriteResult::Error, qtTrId("error.save.encode")}
         : writeFileAtomic(path, png, WriteMode::Replace);
     if (r.status != WriteResult::Ok) {
         showError(r.error);
@@ -424,7 +425,7 @@ void Overlay::cancel()
 void Overlay::showError(const QString& text)
 {
     closeOverlay();
-    QMessageBox::critical(nullptr, QStringLiteral("pinch"), text);
+    QMessageBox::critical(nullptr, qtTrId("dialog.error.title"), text);
     start();
 }
 
@@ -676,8 +677,7 @@ void Overlay::paintHint(QPainter& painter) const
     QRect screen = m_hintScreen;
     if (screen.isEmpty())
         screen = m_capture.screens.isEmpty() ? rect() : m_capture.screens.constFirst();
-    const QString text = QStringLiteral(
-        "Выделите область мышью · клик — весь монитор · Ctrl+A — все мониторы · Esc — отмена");
+    const QString text = qtTrId("overlay.hint");
     QFont font = painter.font();
     font.setPixelSize(18);
     painter.setFont(font);

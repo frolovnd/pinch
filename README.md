@@ -6,7 +6,7 @@
 ## Сборка и установка
 
 ```bash
-sudo apt install qt6-base-dev cmake g++
+sudo apt install qt6-base-dev qt6-tools-dev qt6-l10n-tools cmake g++
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
 ctest --test-dir build --output-on-failure
@@ -45,7 +45,7 @@ cmake --build build-asan -j && ctest --test-dir build-asan --output-on-failure
 ## Сборка на других дистрибутивах (Arch и др.)
 
 ```bash
-sudo pacman -S qt6-base cmake gcc noto-fonts   # шрифты нужны для значков кнопок панели
+sudo pacman -S qt6-base qt6-tools cmake gcc noto-fonts   # шрифты нужны для значков кнопок панели
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
 ```
@@ -53,6 +53,18 @@ cmake --build build -j
 Если более новый компилятор добавляет свои предупреждения, а сборка падает из-за `-Werror`,
 добавьте `-DPINCH_WERROR=OFF` (остальные предупреждения и hardening остаются).
 Приложение работает только в сеансе X11: Wayland пока не поддерживается.
+
+## Язык интерфейса / Localization
+
+Язык берётся из системы (`LANGUAGE`, `LC_MESSAGES`, `LANG`); если для него нет перевода — английский.
+Сейчас доступны: en, ru. Попробовать русский: `LANGUAGE=ru ./build/pinch`.
+The UI language follows the system locale (`LANGUAGE`/`LC_MESSAGES`/`LANG`), with English as the fallback.
+
+Все тексты в коде — ключи `qtTrId("...")`, сами тексты лежат в таблицах `translations/pinch_<язык>.ts`.
+Добавить язык: скопировать `translations/pinch_en.ts` в `translations/pinch_xx.ts`, перевести каждый
+`<translation>` (и поправить `language="xx"` в заголовке), добавить файл в `qt_add_translations`
+в `CMakeLists.txt`. Зависимость сборки: Ubuntu — `qt6-tools-dev qt6-l10n-tools`, Arch — `qt6-tools`.
+Тест `check_i18n` проверяет, что все ключи из кода есть в обеих таблицах.
 
 ## Модель угроз и ограничения
 

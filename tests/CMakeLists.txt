@@ -21,3 +21,8 @@ pinch_add_test(test_toolbar)
 pinch_add_test(test_keys)
 pinch_add_test(test_overlay)
 pinch_add_test(test_appicon)
+pinch_add_test(test_i18n)
+
+# Проверка согласованности ключей локализации и таблиц (без сборки).
+add_test(NAME check_i18n
+    COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_SOURCE_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/check_i18n.cmake)

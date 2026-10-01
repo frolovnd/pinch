@@ -2,6 +2,7 @@
 
 #include <QBuffer>
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -59,7 +60,7 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
     if (fd < 0) {
         const int err = errno; // до построения сообщения: порядок вычисления аргументов не определён
         return {WriteResult::Error,
-                QStringLiteral("Не удалось создать временный файл в каталоге «%1»: %2")
+                qtTrId("error.save.create_temp")
                     .arg(info.absolutePath(), sysText(err))};
     }
 
@@ -76,7 +77,7 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
     if (!ok) {
         ::unlink(temp.constData());
         return {WriteResult::Error,
-                QStringLiteral("Не удалось записать «%1»: %2").arg(info.absoluteFilePath(), sysText(err))};
+                qtTrId("error.save.write").arg(info.absoluteFilePath(), sysText(err))};
     }
 
     // Переименование подменяет запись в каталоге и не следует по симлинку на месте target.
@@ -87,9 +88,9 @@ WriteResult writeFileAtomic(const QString& path, const QByteArray& data, WriteMo
         err = errno;
         ::unlink(temp.constData());
         if (err == EEXIST)
-            return {WriteResult::Exists, QStringLiteral("Файл «%1» уже существует").arg(info.absoluteFilePath())};
+            return {WriteResult::Exists, qtTrId("error.save.exists").arg(info.absoluteFilePath())};
         return {WriteResult::Error,
-                QStringLiteral("Не удалось сохранить «%1»: %2").arg(info.absoluteFilePath(), sysText(err))};
+                qtTrId("error.save.rename").arg(info.absoluteFilePath(), sysText(err))};
     }
     return {WriteResult::Ok, {}};
 }
@@ -106,7 +107,7 @@ WriteResult quickSave(const QImage& image, const QString& dir, const QDateTime& 
 {
     const QByteArray png = encodePng(image);
     if (png.isEmpty())
-        return {WriteResult::Error, QStringLiteral("не удалось закодировать PNG")};
+        return {WriteResult::Error, qtTrId("error.save.encode")};
     for (int attempt = 0; attempt < 100; ++attempt) {
         const QString path = QDir(dir).filePath(quickSaveFileName(now, attempt));
         const WriteResult r = writeFileAtomic(path, png, WriteMode::NoReplace);
@@ -116,7 +117,7 @@ WriteResult quickSave(const QImage& image, const QString& dir, const QDateTime& 
             *savedPath = path;
         return r;
     }
-    return {WriteResult::Error, QStringLiteral("все имена файлов на эту секунду заняты")};
+    return {WriteResult::Error, qtTrId("error.save.names_exhausted")};
 }
 
 QString screenshotsDir()

@@ -1,5 +1,7 @@
 #include "toolbar.h"
 
+#include <QCoreApplication>
+
 #include <QApplication>
 #include <QEvent>
 #include <QFrame>
@@ -21,15 +23,15 @@ struct ToolDef {
 };
 
 const ToolDef kTools[] = {
-    {Tool::Pen, "tool-pen", "✎", "Карандаш (P)"},
-    {Tool::Marker, "tool-marker", "▮", "Маркер (M)"},
-    {Tool::Line, "tool-line", "╱", "Линия (L)"},
-    {Tool::Arrow, "tool-arrow", "↗", "Стрелка (A)"},
-    {Tool::Rect, "tool-rect", "▭", "Прямоугольник (R)"},
-    {Tool::Ellipse, "tool-ellipse", "◯", "Эллипс (E)"},
-    {Tool::Text, "tool-text", "T", "Текст (T)"},
-    {Tool::Counter, "tool-counter", "①", "Номерок (N)"},
-    {Tool::Pixelate, "tool-pixelate", "▦", "Пикселизация (B)"},
+    {Tool::Pen, "tool-pen", "✎", QT_TRID_NOOP("toolbar.tool.pen")},
+    {Tool::Marker, "tool-marker", "▮", QT_TRID_NOOP("toolbar.tool.marker")},
+    {Tool::Line, "tool-line", "╱", QT_TRID_NOOP("toolbar.tool.line")},
+    {Tool::Arrow, "tool-arrow", "↗", QT_TRID_NOOP("toolbar.tool.arrow")},
+    {Tool::Rect, "tool-rect", "▭", QT_TRID_NOOP("toolbar.tool.rect")},
+    {Tool::Ellipse, "tool-ellipse", "◯", QT_TRID_NOOP("toolbar.tool.ellipse")},
+    {Tool::Text, "tool-text", "T", QT_TRID_NOOP("toolbar.tool.text")},
+    {Tool::Counter, "tool-counter", "①", QT_TRID_NOOP("toolbar.tool.counter")},
+    {Tool::Pixelate, "tool-pixelate", "▦", QT_TRID_NOOP("toolbar.tool.pixelate")},
 };
 }
 
@@ -65,7 +67,7 @@ Toolbar::Toolbar(QWidget* parent)
     // Ряд 1: инструменты.
     for (const ToolDef& def : kTools) {
         QToolButton* b = addButton(toolsRow, QString::fromLatin1(def.name), QString::fromUtf8(def.glyph),
-                                   QString::fromUtf8(def.tip));
+                                   qtTrId(def.tip));
         b->setCheckable(true);
         const Tool tool = def.tool;
         connect(b, &QToolButton::clicked, this, [this, tool] {
@@ -101,7 +103,7 @@ Toolbar::Toolbar(QWidget* parent)
     for (int i = 0; i < presets.size(); ++i) {
         const int value = presets.at(i);
         QToolButton* b = addButton(styleRow, QStringLiteral("thickness-%1").arg(i), QString(),
-                                   QStringLiteral("Толщина %1 px (клавиша %2)").arg(value).arg(i + 1));
+                                   qtTrId("toolbar.thickness.preset").arg(value).arg(i + 1));
         b->setCheckable(true);
         QPixmap pixmap(18, 18);
         pixmap.fill(Qt::transparent);
@@ -128,7 +130,7 @@ Toolbar::Toolbar(QWidget* parent)
     m_slider->setPageStep(5);
     m_slider->setFixedWidth(90);
     m_slider->setFocusPolicy(Qt::NoFocus);
-    m_slider->setToolTip(QStringLiteral("Толщина (колесо мыши, клавиши 1–5)"));
+    m_slider->setToolTip(qtTrId("toolbar.thickness.slider"));
     m_slider->installEventFilter(this); // колесо над ползунком уходит оверлею, а не меняет ползунок
     connect(m_slider, &QSlider::valueChanged, this, [this](int v) {
         setThickness(v);
@@ -138,23 +140,23 @@ Toolbar::Toolbar(QWidget* parent)
 
     m_thickness = new QLabel(this);
     m_thickness->setObjectName(QStringLiteral("thickness"));
-    m_thickness->setToolTip(QStringLiteral("Толщина (колесо мыши)"));
+    m_thickness->setToolTip(qtTrId("toolbar.thickness.label"));
     styleRow->addWidget(m_thickness);
 
     // Ряд 3: история слева, вывод справа.
-    m_undo = addButton(actionsRow, QStringLiteral("undo"), QStringLiteral("↶"), QStringLiteral("Отменить (Ctrl+Z)"));
-    m_redo = addButton(actionsRow, QStringLiteral("redo"), QStringLiteral("↷"), QStringLiteral("Повторить (Ctrl+Shift+Z)"));
+    m_undo = addButton(actionsRow, QStringLiteral("undo"), QStringLiteral("↶"), qtTrId("toolbar.undo"));
+    m_redo = addButton(actionsRow, QStringLiteral("redo"), QStringLiteral("↷"), qtTrId("toolbar.redo"));
     connect(m_undo, &QToolButton::clicked, this, &Toolbar::undoRequested);
     connect(m_redo, &QToolButton::clicked, this, &Toolbar::redoRequested);
 
     actionsRow->addStretch();
-    connect(addButton(actionsRow, QStringLiteral("copy"), QStringLiteral("⧉"), QStringLiteral("Копировать в буфер (Ctrl+C)")),
+    connect(addButton(actionsRow, QStringLiteral("copy"), QStringLiteral("⧉"), qtTrId("toolbar.copy")),
             &QToolButton::clicked, this, &Toolbar::copyRequested);
-    connect(addButton(actionsRow, QStringLiteral("quicksave"), QStringLiteral("↓"), QStringLiteral("Быстро сохранить (Ctrl+S)")),
+    connect(addButton(actionsRow, QStringLiteral("quicksave"), QStringLiteral("↓"), qtTrId("toolbar.quicksave")),
             &QToolButton::clicked, this, &Toolbar::quickSaveRequested);
-    connect(addButton(actionsRow, QStringLiteral("saveas"), QStringLiteral("…"), QStringLiteral("Сохранить как (Ctrl+Shift+S)")),
+    connect(addButton(actionsRow, QStringLiteral("saveas"), QStringLiteral("…"), qtTrId("toolbar.saveas")),
             &QToolButton::clicked, this, &Toolbar::saveAsRequested);
-    connect(addButton(actionsRow, QStringLiteral("close"), QStringLiteral("✕"), QStringLiteral("Закрыть (Esc)")),
+    connect(addButton(actionsRow, QStringLiteral("close"), QStringLiteral("✕"), qtTrId("toolbar.close")),
             &QToolButton::clicked, this, &Toolbar::closeRequested);
 
     setTool(Tool::None);

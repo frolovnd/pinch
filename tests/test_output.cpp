@@ -1,5 +1,6 @@
 #include <QtTest>
 
+#include "i18n.h"
 #include "output.h"
 
 #include <sys/stat.h>
@@ -36,7 +37,9 @@ const QDateTime kNow(QDate(2026, 9, 30), QTime(14, 5, 33));
 
 class TestOutput : public QObject {
     Q_OBJECT
+
 private slots:
+    void initTestCase() { installTranslations(*QCoreApplication::instance(), QLocale(QStringLiteral("en_US"))); }
     void pngRoundTrip()
     {
         QImage image(20, 10, QImage::Format_RGB32);
@@ -115,7 +118,9 @@ private slots:
         QCOMPARE(r.status, WriteResult::Error);
         QVERIFY(!r.error.isEmpty());
         QVERIFY2(r.error.contains(dir.filePath(QStringLiteral("no/such"))), qPrintable(r.error));
-        QVERIFY2(r.error.contains(QStringLiteral("Не удалось")), qPrintable(r.error));
+        // Текст берётся из таблицы: тест не зависит от языка системы. Ключ, не найденный в таблице, вернулся бы как есть.
+        QVERIFY2(r.error != QLatin1String("error.save.create_temp"), qPrintable(r.error));
+        QVERIFY2(r.error.startsWith(qtTrId("error.save.create_temp").section(QLatin1String("%1"), 0, 0)), qPrintable(r.error));
     }
 
     void quickSaveFileNames()

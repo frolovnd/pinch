@@ -16,7 +16,7 @@ check_pie_supported()
 option(PINCH_WERROR "Считать предупреждения компилятора ошибками" ON)
 option(PINCH_SANITIZE "Собрать с AddressSanitizer и UndefinedBehaviorSanitizer" OFF)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Test)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Test LinguistTools)
 
 # Общие флаги для всех наших целей: предупреждения (как ошибки, если PINCH_WERROR) и hardening.
 add_library(pinch_options INTERFACE)
@@ -51,6 +51,7 @@ add_library(pinch_core STATIC
     src/keys.h src/keys.cpp
     src/overlay.h src/overlay.cpp
     src/appicon.h src/appicon.cpp
+    src/i18n.h src/i18n.cpp
 )
 # Иконки окна встроены в бинарь (для диалогов и заголовков); установка hicolor — ниже.
 qt_add_resources(pinch_core "icons" PREFIX "/icons" BASE "data/icons/hicolor" FILES
@@ -58,6 +59,11 @@ qt_add_resources(pinch_core "icons" PREFIX "/icons" BASE "data/icons/hicolor" FI
     data/icons/hicolor/64x64/apps/pinch.png
     data/icons/hicolor/128x128/apps/pinch.png
     data/icons/hicolor/256x256/apps/pinch.png)
+# Таблицы переводов (id-based .ts) компилируются в .qm и встраиваются в ресурсы: :/i18n/pinch_<lang>.qm.
+qt_add_translations(pinch_core
+    TS_FILES translations/pinch_en.ts translations/pinch_ru.ts
+    RESOURCE_PREFIX "/i18n"
+    LRELEASE_OPTIONS -idbased)
 target_include_directories(pinch_core PUBLIC src)
 target_link_libraries(pinch_core PUBLIC Qt6::Widgets pinch_options)
 
