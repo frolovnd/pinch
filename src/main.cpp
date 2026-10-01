@@ -1,5 +1,6 @@
 #include "appicon.h"
 #include "capture.h"
+#include "capturebackend.h"
 #include "i18n.h"
 #include "instancelock.h"
 #include "output.h"
@@ -10,6 +11,7 @@
 #include <QClipboard>
 #include <QCommandLineParser>
 #include <QLocale>
+#include <QMessageBox>
 #include <QPointer>
 
 #include <sys/prctl.h>
@@ -71,9 +73,12 @@ int main(int argc, char** argv)
         }
     }
 
-    std::optional<Capture> capture = captureAllScreens();
+    QStringList captureErrors;
+    std::optional<Capture> capture = captureScreens(detectEnvironment(), &captureErrors);
     if (!capture) {
-        qCritical("%s", qPrintable(qtTrId("log.capture_failed")));
+        const QString text = qtTrId("error.capture.failed") + QLatin1Char('\n') + captureErrors.join(QLatin1Char('\n'));
+        qCritical("%s", qPrintable(text));
+        QMessageBox::critical(nullptr, qtTrId("error.capture.title"), text);
         return 1;
     }
 

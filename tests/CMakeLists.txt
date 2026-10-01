@@ -12,6 +12,7 @@ endfunction()
 
 pinch_add_test(test_geometry)
 pinch_add_test(test_capture)
+pinch_add_test(test_capturebackend)
 pinch_add_test(test_instancelock)
 pinch_add_test(test_document)
 pinch_add_test(test_renderer)

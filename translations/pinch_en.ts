@@ -131,9 +131,29 @@
         <source>Could not acquire lock %1 - running without it</source>
         <translation>Could not acquire lock %1 - running without it</translation>
     </message>
-    <message id="log.capture_failed">
-        <source>Could not capture the screen</source>
-        <translation>Could not capture the screen</translation>
+    <message id="error.capture.title">
+        <source>pinch</source>
+        <translation>pinch</translation>
+    </message>
+    <message id="error.capture.failed">
+        <source>Could not capture the screen:</source>
+        <translation>Could not capture the screen:</translation>
+    </message>
+    <message id="error.capture.qt_grab">
+        <source>could not grab the screen via Qt</source>
+        <translation>could not grab the screen via Qt</translation>
+    </message>
+    <message id="error.capture.unavailable_in_build">
+        <source>method is not available in this build</source>
+        <translation>method is not available in this build</translation>
+    </message>
+    <message id="error.capture.unknown">
+        <source>unknown error</source>
+        <translation>unknown error</translation>
+    </message>
+    <message id="error.capture.unknown_method">
+        <source>unknown method PINCH_CAPTURE=%1 (allowed: x11, screencopy, kwin, portal)</source>
+        <translation>unknown method PINCH_CAPTURE=%1 (allowed: x11, screencopy, kwin, portal)</translation>
     </message>
 </context>
 </TS>

@@ -131,9 +131,29 @@
         <source>Could not acquire lock %1 - running without it</source>
         <translation>Не удалось взять блокировку %1 — работаю без неё</translation>
     </message>
-    <message id="log.capture_failed">
-        <source>Could not capture the screen</source>
-        <translation>Не удалось снять экран</translation>
+    <message id="error.capture.title">
+        <source>pinch</source>
+        <translation>pinch</translation>
+    </message>
+    <message id="error.capture.failed">
+        <source>Could not capture the screen:</source>
+        <translation>Не удалось снять экран:</translation>
+    </message>
+    <message id="error.capture.qt_grab">
+        <source>could not grab the screen via Qt</source>
+        <translation>не удалось снять экран средствами Qt</translation>
+    </message>
+    <message id="error.capture.unavailable_in_build">
+        <source>method is not available in this build</source>
+        <translation>метод недоступен в этой сборке</translation>
+    </message>
+    <message id="error.capture.unknown">
+        <source>unknown error</source>
+        <translation>неизвестная ошибка</translation>
+    </message>
+    <message id="error.capture.unknown_method">
+        <source>unknown method PINCH_CAPTURE=%1 (allowed: x11, screencopy, kwin, portal)</source>
+        <translation>неизвестный метод PINCH_CAPTURE=%1 (допустимо: x11, screencopy, kwin, portal)</translation>
     </message>
 </context>
 </TS>

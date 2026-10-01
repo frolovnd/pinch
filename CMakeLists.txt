@@ -44,6 +44,7 @@ add_library(pinch_core STATIC
     src/geometry.h src/geometry.cpp
     src/renderer.h src/renderer.cpp
     src/capture.h src/capture.cpp
+    src/capturebackend.h src/capturebackend.cpp
     src/instancelock.h src/instancelock.cpp
     src/output.h src/output.cpp
     src/settings.h src/settings.cpp
