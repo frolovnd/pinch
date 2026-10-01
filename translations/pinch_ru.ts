@@ -229,7 +229,7 @@
     </message>
     <message id="error.capture.portal.timeout">
         <source>the portal did not respond in time</source>
-        <translation>Портал не ответил вовремя</translation>
+        <translation>портал не ответил вовремя</translation>
     </message>
     <message id="error.capture.portal.denied">
         <source>The portal refused to take a screenshot. In GNOME: Settings → Apps → pinch → allow screenshots</source>
@@ -246,6 +246,10 @@
     <message id="warning.capture.portal.file_kept">
         <source>portal file left in place: %1</source>
         <translation>файл портала оставлен: %1</translation>
+    </message>
+    <message id="error.capture.portal.not_regular_file">
+        <source>the portal returned something that is not a regular file</source>
+        <translation>портал вернул не обычный файл</translation>
     </message>
 </context>
 </TS>

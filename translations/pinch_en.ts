@@ -247,5 +247,9 @@
         <source>portal file left in place: %1</source>
         <translation>portal file left in place: %1</translation>
     </message>
+    <message id="error.capture.portal.not_regular_file">
+        <source>the portal returned something that is not a regular file</source>
+        <translation>the portal returned something that is not a regular file</translation>
+    </message>
 </context>
 </TS>

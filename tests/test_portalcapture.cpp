@@ -83,6 +83,24 @@ private slots:
         expectError(QStringLiteral("silent"), qtTrId("error.capture.portal.timeout"), 500);
     }
 
+    void fifoIsRejectedWithoutHang()
+    {
+        QElapsedTimer t;
+        t.start();
+        expectError(QStringLiteral("fifo"), qtTrId("error.capture.portal.not_regular_file"));
+        QVERIFY(t.elapsed() < 10000);
+    }
+
+    void foreignHostIsRejected()
+    {
+        expectError(QStringLiteral("host"), qtTrId("error.capture.portal.bad_uri"));
+    }
+
+    void nonFileSchemeIsRejected()
+    {
+        expectError(QStringLiteral("http"), qtTrId("error.capture.portal.bad_uri"));
+    }
+
     void symlinkNotDeleted()
     {
         QTemporaryDir dir;
@@ -93,6 +111,7 @@ private slots:
         QVERIFY(bus.startService(fake, QStringLiteral(FAKE_PORTAL_PATH), {QStringLiteral("symlink"), img},
                                  QStringLiteral("org.freedesktop.portal.Desktop")));
         QString error;
+        QTest::ignoreMessage(QtWarningMsg, qPrintable(qtTrId("warning.capture.portal.file_kept").arg(img)));
         QVERIFY2(captureWithPortal(bus.connect(QStringLiteral("p-l")), {QRect(0, 0, 4, 2)}, &error).has_value(), qPrintable(error));
         QVERIFY(QFileInfo(img).isSymLink()); // симлинк не тронут
         fake.terminate();

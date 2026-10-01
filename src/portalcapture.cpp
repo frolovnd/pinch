@@ -2,6 +2,8 @@
 
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
+#include <QDBusObjectPath>
+#include <QDeadlineTimer>
 #include <QDateTime>
 #include <QEventLoop>
 #include <QFile>
@@ -87,25 +89,29 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
     if (!bus.connect(QString(), path, QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
                      &waiter, SLOT(onResponse(uint, QVariantMap))))
         return fail(qtTrId("error.capture.portal.call_failed").arg(bus.lastError().message()));
+    QStringList subscribed{path};
     struct Unsubscribe {
         QDBusConnection& bus;
-        const QString& path;
+        const QStringList& paths;
         ResponseWaiter& waiter;
         ~Unsubscribe()
         {
-            bus.disconnect(QString(), path, QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
-                           &waiter, SLOT(onResponse(uint, QVariantMap)));
+            for (const QString& p : paths)
+                bus.disconnect(QString(), p, QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
+                               &waiter, SLOT(onResponse(uint, QVariantMap)));
         }
-    } unsubscribe{bus, path, waiter};
+    } unsubscribe{bus, subscribed, waiter};
 
     // 3. Вызов Screenshot (неинтерактивный).
+    // Общий предел ожидания: вызов и ожидание сигнала вместе не дольше timeoutMs.
+    const QDeadlineTimer deadline(timeoutMs);
     const qint64 requestStart = QDateTime::currentSecsSinceEpoch();
     QDBusMessage msg = QDBusMessage::createMethodCall(PORTAL_SERVICE, PORTAL_PATH,
                                                       QStringLiteral("org.freedesktop.portal.Screenshot"),
                                                       QStringLiteral("Screenshot"));
     const QVariantMap options{{QStringLiteral("handle_token"), token}, {QStringLiteral("interactive"), false}};
     msg << QString() << options;
-    const QDBusMessage reply = bus.call(msg, QDBus::Block, timeoutMs);
+    const QDBusMessage reply = bus.call(msg, QDBus::Block, static_cast<int>(qMax<qint64>(1, deadline.remainingTime())));
     if (reply.type() == QDBusMessage::ErrorMessage) {
         QString text = reply.errorMessage();
         if (text.isEmpty())
@@ -115,12 +121,21 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
     if (reply.type() != QDBusMessage::ReplyMessage)
         return fail(qtTrId("error.capture.portal.call_failed").arg(bus.lastError().message()));
 
+    // Старые порталы (< 0.9) возвращают путь запроса, отличный от вычисленного: подписываемся и на него.
+    if (!reply.arguments().isEmpty() && reply.arguments().first().canConvert<QDBusObjectPath>()) {
+        const QString returned = reply.arguments().first().value<QDBusObjectPath>().path();
+        if (!returned.isEmpty() && !subscribed.contains(returned)
+            && bus.connect(QString(), returned, QStringLiteral("org.freedesktop.portal.Request"),
+                           QStringLiteral("Response"), &waiter, SLOT(onResponse(uint, QVariantMap))))
+            subscribed << returned;
+    }
+
     // 4. Ожидание ответа с пределом по времени.
-    if (!waiter.done) {
+    if (!waiter.done && !deadline.hasExpired()) {
         QTimer timer;
         timer.setSingleShot(true);
         QObject::connect(&timer, &QTimer::timeout, &waiter.loop, &QEventLoop::quit);
-        timer.start(timeoutMs);
+        timer.start(static_cast<int>(qMax<qint64>(1, deadline.remainingTime())));
         waiter.loop.exec();
     }
     if (!waiter.done)
@@ -133,9 +148,14 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
     // 6. Только file://; содержимое читается как изображение.
     const QString uri = waiter.results.value(QStringLiteral("uri")).toString();
     const QUrl url(uri);
-    if (!uri.startsWith(QLatin1String("file://")) || !url.isLocalFile())
+    if (!uri.startsWith(QLatin1String("file://")) || !url.isLocalFile()
+        || (!url.host().isEmpty() && url.host() != QLatin1String("localhost")))
         return fail(qtTrId("error.capture.portal.bad_uri"));
     const QString localPath = url.toLocalFile();
+    // Путь недоверенный: FIFO или устройство заблокировали бы чтение навсегда. stat следует за симлинками (это допустимо).
+    struct stat st;
+    if (::stat(QFile::encodeName(localPath).constData(), &st) != 0 || !S_ISREG(st.st_mode))
+        return fail(qtTrId("error.capture.portal.not_regular_file"));
     const QImage image(localPath);
 
     // 7. Файл удаляется, только если он явно наш и свежий; иначе остаётся.

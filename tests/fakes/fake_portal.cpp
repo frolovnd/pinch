@@ -1,5 +1,5 @@
 // Поддельный xdg-desktop-portal: org.freedesktop.portal.Desktop, интерфейс org.freedesktop.portal.Screenshot.
-// Режим и путь к картинке — аргументы командной строки: <mode> <imagePath>; mode: ok | deny | symlink | silent.
+// Режим и путь к картинке — аргументы командной строки: <mode> <imagePath>; mode: ok | deny | symlink | silent | fifo | host | http.
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -10,6 +10,8 @@
 #include <QTimer>
 #include <QUrl>
 #include <QVariantMap>
+
+#include <sys/stat.h>
 
 class FakeScreenshot : public QObject, protected QDBusContext {
     Q_OBJECT
@@ -42,6 +44,13 @@ public slots:
             QFile::remove(m_imagePath);
             QFile::link(target, m_imagePath);
             results.insert(QStringLiteral("uri"), QUrl::fromLocalFile(m_imagePath).toString());
+        } else if (m_mode == QLatin1String("fifo")) {
+            ::mkfifo(QFile::encodeName(m_imagePath).constData(), 0600);
+            results.insert(QStringLiteral("uri"), QUrl::fromLocalFile(m_imagePath).toString());
+        } else if (m_mode == QLatin1String("host")) {
+            results.insert(QStringLiteral("uri"), QStringLiteral("file://otherhost/x.png"));
+        } else if (m_mode == QLatin1String("http")) {
+            results.insert(QStringLiteral("uri"), QStringLiteral("http://example.com/x.png"));
         } else if (m_mode == QLatin1String("deny")) {
             code = 1;
         } else {
