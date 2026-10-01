@@ -36,6 +36,7 @@ target_compile_definitions(test_kwincapture PRIVATE FAKE_KWIN_PATH="$<TARGET_FIL
 # Клиент xdg-desktop-portal против поддельного портала.
 add_executable(fake_portal fakes/fake_portal.cpp fakes/fakeauth.h)
 target_link_libraries(fake_portal PRIVATE Qt6::Gui Qt6::DBus pinch_options)
+target_compile_definitions(fake_portal PRIVATE PINCH_APP_ID="${PINCH_APP_ID}")
 pinch_add_test(test_portalcapture)
 add_dependencies(test_portalcapture fake_portal)
 target_include_directories(test_portalcapture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

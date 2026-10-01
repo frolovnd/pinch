@@ -67,10 +67,10 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
 - Проверка наличия: интерфейс `org.kde.KWin.ScreenShot2` у сервиса `org.kde.KWin`, путь `/org/kde/KWin/ScreenShot2`.
 - `pipe2(O_CLOEXEC)`; вызов `CaptureWorkspace(options, QDBusUnixFileDescriptor(writeEnd))`, options: `include-cursor=false`, `native-resolution=false`; сразу закрываем свой writeEnd; читаем readEnd до EOF (таймаут 5 с), ответ D-Bus — словарь `type` (ожидаем `raw`), `width`, `height`, `stride`, `format` (значение `QImage::Format`).
 - Проверки: `stride*height` байт получено, формат из разрешённого списка (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`, `RGBX8888`, `RGBA8888`); иначе ошибка метода. Результат → `Format_RGB32`, `origin` = левый верхний угол охватывающего прямоугольника мониторов, `screens` — из `QScreen::geometry()` в координатах изображения.
-- KWin пускает к ScreenShot2 только программы, чей `.desktop` содержит `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` → добавляем ключ в `pinch.desktop`, а сам файл генерируем при конфигурации с **абсолютным** `Exec=<prefix>/bin/pinch` (чтобы KWin сопоставил процесс с файлом). Без установленного `.desktop` метод получит отказ — это штатная ошибка, дальше пробуется портал.
+- KWin пускает к ScreenShot2 только программы, чей `.desktop` содержит `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` → добавляем ключ в `io.github.ufna.pinch.desktop`, а сам файл генерируем при установке с **абсолютным** `Exec=<prefix>/<bindir>/pinch` (чтобы KWin сопоставил процесс с файлом). Без установленного `.desktop` метод получит отказ — это штатная ошибка, дальше пробуется портал.
 
 ### 4.4 Портал (GNOME и запасной везде) — `portalcapture.{h,cpp}`
-- Если есть `org.freedesktop.host.portal.Registry`, вызываем `Register("pinch", {})` (идентификатор приложения для хранения разрешения); отсутствие интерфейса — не ошибка.
+- Первым вызовом — `org.freedesktop.host.portal.Registry.Register("io.github.ufna.pinch", {})` у самого портала (сервис `org.freedesktop.portal.Desktop`, путь `/org/freedesktop/portal/desktop`, xdg-desktop-portal ≥ 1.19): идентификатор приложения (имя установленного `.desktop`) для хранения разрешения; ошибка (старый портал без интерфейса) — не ошибка снимка. Тот же идентификатор — `QGuiApplication::setDesktopFileName` (app_id окон Wayland).
 - `org.freedesktop.portal.Screenshot.Screenshot("", {interactive: false, handle_token: "pinch<случайное>"})`; ждём сигнал `Response` у объекта запроса (локальный `QEventLoop`, таймаут 15 с).
 - `response != 0` (отказ/отмена) → ошибка метода с понятным текстом: «Портал отказал в снимке экрана. В GNOME: Настройки → Приложения → pinch → разрешить снимки экрана».
 - `uri` должен быть `file://`; файл читаем в память (`QImage::fromData`).
@@ -108,7 +108,7 @@ Wayland не позволяет одно окно на весь виртуаль
   - Arch: `qt6-base qt6-wayland wayland cmake gcc noto-fonts`.
 - Опция `PINCH_WAYLAND` (по умолчанию ON): при OFF — сборка только с X11 (без wayland-client), `captureOrder` не предлагает `Screencopy`.
 - `protocols/wlr-screencopy-unstable-v1.xml` — вложенная копия с указанием источника и лицензии; генерация `wayland-scanner client-header` и `private-code` в каталог сборки.
-- `data/pinch.desktop.in` → `pinch.desktop` через `configure_file` с `@CMAKE_INSTALL_FULL_BINDIR@/pinch`.
+- `data/io.github.ufna.pinch.desktop.in` → `io.github.ufna.pinch.desktop` через `configure_file` с `@CMAKE_INSTALL_FULL_BINDIR@/pinch`; при установке файл генерируется заново с настоящим префиксом. Все пути установки — `CMAKE_INSTALL_BINDIR` / `CMAKE_INSTALL_DATADIR` (бинарь и `Exec` не расходятся). Идентификатор приложения `PINCH_APP_ID` задан в CMake один раз.
 
 ## 9. Риски без спайка и защитное поведение
 

@@ -108,7 +108,7 @@ private slots:
     void rejectsDenied()
     {
         expectError(QStringLiteral("deny"), QStringLiteral("authorized"));
-        // Подсказка про установку pinch.desktop — по ключу, не по тексту.
+        // Подсказка про установку .desktop — по ключу, не по тексту.
         QVERIFY2(m_lastError.contains(qtTrId("error.capture.kwin.desktop_hint")), qPrintable(m_lastError));
     }
     void rejectsShortData() { expectError(QStringLiteral("short"), qtTrId("error.capture.kwin.bad_reply")); }

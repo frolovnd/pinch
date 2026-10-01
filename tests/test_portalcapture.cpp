@@ -141,6 +141,24 @@ private slots:
         fake.waitForFinished(3000);
     }
 
+    // Старый портал (< 1.19) без org.freedesktop.host.portal.Registry: ошибка регистрации не мешает снимку.
+    void capturesWithoutRegistry()
+    {
+        QTemporaryDir dir;
+        const QString img = dir.filePath(QStringLiteral("portal.png"));
+        DBusTestBus bus;
+        QVERIFY(bus.start());
+        QProcess fake;
+        QVERIFY(bus.startService(fake, QStringLiteral(FAKE_PORTAL_PATH), {QStringLiteral("noregistry"), img},
+                                 QStringLiteral("org.freedesktop.portal.Desktop")));
+        QString error;
+        const auto cap = captureWithPortal(bus.connect(QStringLiteral("p-noreg")), {QRect(0, 0, 4, 2)}, &error);
+        QVERIFY2(cap.has_value(), qPrintable(error));
+        QCOMPARE(cap->image.pixel(0, 0), qRgb(0, 0, 0xff));
+        fake.terminate();
+        fake.waitForFinished(3000);
+    }
+
     void deniedIsExplained()
     {
         expectError(QStringLiteral("deny"), qtTrId("error.capture.portal.denied"));

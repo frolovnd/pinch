@@ -17,6 +17,8 @@ check_pie_supported()
 option(PINCH_WERROR "Считать предупреждения компилятора ошибками" ON)
 option(PINCH_SANITIZE "Собрать с AddressSanitizer и UndefinedBehaviorSanitizer" OFF)
 option(PINCH_WAYLAND "Поддержка Wayland (screencopy)" ON)
+# Идентификатор приложения (обратная запись домена): имя .desktop, app_id окон Wayland, регистрация в портале.
+set(PINCH_APP_ID "io.github.ufna.pinch")
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets DBus Test LinguistTools)
 
@@ -79,6 +81,7 @@ qt_add_translations(pinch_core
     RESOURCE_PREFIX "/i18n"
     LRELEASE_OPTIONS -idbased)
 target_include_directories(pinch_core PUBLIC src)
+target_compile_definitions(pinch_core PUBLIC PINCH_APP_ID="${PINCH_APP_ID}")
 target_link_libraries(pinch_core PUBLIC Qt6::Widgets Qt6::DBus pinch_options)
 
 # Wayland: собственное соединение wayland-client и протокол wlr-screencopy (код генерирует wayland-scanner).
@@ -108,20 +111,23 @@ endif()
 add_executable(pinch src/main.cpp)
 target_link_libraries(pinch PRIVATE pinch_core)
 target_compile_definitions(pinch PRIVATE PINCH_VERSION="${PROJECT_VERSION}")
-install(TARGETS pinch DESTINATION bin)
-install(DIRECTORY data/icons/hicolor DESTINATION share/icons)
+# Все пути установки — через GNUInstallDirs: бинарь и Exec в .desktop берут один и тот же CMAKE_INSTALL_BINDIR.
+install(TARGETS pinch RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY data/icons/hicolor DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)
 # Exec — абсолютный путь: по нему KWin сопоставляет процесс с .desktop (X-KDE-DBUS-Restricted-Interfaces).
-# build/pinch.desktop — для проверки (desktop-file-validate) с префиксом времени конфигурации;
-# при установке файл генерируется заново с настоящим префиксом (`cmake --install --prefix …`).
-configure_file(data/pinch.desktop.in ${CMAKE_CURRENT_BINARY_DIR}/pinch.desktop @ONLY)
+# build/<id>.desktop — для проверки (desktop-file-validate) с префиксом времени конфигурации;
+# при установке файл генерируется заново с настоящим префиксом (`cmake --install --prefix …`), затем ставится как обычный.
+set(PINCH_DESKTOP_IN "${CMAKE_CURRENT_SOURCE_DIR}/data/${PINCH_APP_ID}.desktop.in")
+set(PINCH_DESKTOP_INSTALL "${CMAKE_CURRENT_BINARY_DIR}/install/${PINCH_APP_ID}.desktop")
+configure_file(${PINCH_DESKTOP_IN} ${CMAKE_CURRENT_BINARY_DIR}/${PINCH_APP_ID}.desktop @ONLY)
 install(CODE "
-    set(CMAKE_INSTALL_FULL_BINDIR \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
-    configure_file(\"${CMAKE_CURRENT_SOURCE_DIR}/data/pinch.desktop.in\"
-        \"${CMAKE_CURRENT_BINARY_DIR}/pinch-install.desktop\" @ONLY)
-    file(INSTALL \"${CMAKE_CURRENT_BINARY_DIR}/pinch-install.desktop\"
-        DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/applications\"
-        RENAME pinch.desktop)
+    set(CMAKE_INSTALL_FULL_BINDIR \"${CMAKE_INSTALL_BINDIR}\")
+    if(NOT IS_ABSOLUTE \"\${CMAKE_INSTALL_FULL_BINDIR}\")
+        set(CMAKE_INSTALL_FULL_BINDIR \"\${CMAKE_INSTALL_PREFIX}/\${CMAKE_INSTALL_FULL_BINDIR}\")
+    endif()
+    configure_file(\"${PINCH_DESKTOP_IN}\" \"${PINCH_DESKTOP_INSTALL}\" @ONLY)
 ")
+install(FILES ${PINCH_DESKTOP_INSTALL} DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 
 enable_testing()
 add_subdirectory(tests)

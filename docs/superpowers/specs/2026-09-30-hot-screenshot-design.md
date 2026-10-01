@@ -310,7 +310,7 @@ docs/superpowers/{specs,plans}/
 
 ## 10. Установка и горячая клавиша
 
-- `cmake --install build --prefix ~/.local` → `~/.local/bin/pinch`, иконки `~/.local/share/icons/hicolor/<N>x<N>/apps/pinch.png` и меню `~/.local/share/applications/pinch.desktop` (иконка окна встроена в бинарь как Qt-ресурс).
+- `cmake --install build --prefix ~/.local` → `~/.local/bin/pinch`, иконки `~/.local/share/icons/hicolor/<N>x<N>/apps/pinch.png` и меню `~/.local/share/applications/io.github.ufna.pinch.desktop` (иконка окна встроена в бинарь как Qt-ресурс).
 - `scripts/set-gnome-shortcut.sh [путь_к_бинарю]` переназначает существующий ярлык `custom0` («gnome-screenshot», `Shift+Super+S`) на pinch: имя «pinch», команда — абсолютный путь. Перед изменением скрипт печатает текущие значения, чтобы можно было откатиться.
 - **Скрипт запускает только пользователь.** Агенты его не выполняют и не ставят пакеты через sudo.
 

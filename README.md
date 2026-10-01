@@ -14,7 +14,7 @@ cmake --install build --prefix ~/.local
 scripts/set-gnome-shortcut.sh   # Shift+Super+S → pinch
 ```
 
-`cmake --install build --prefix ~/.local` ставит также иконку (`~/.local/share/icons/hicolor/…/apps/pinch.png`) и пункт меню (`~/.local/share/applications/pinch.desktop`). Иконки в репозитории уже отрисованы; `scripts/render-icons.sh` пересобирает их из `data/icons/pinch-source.png` (нужен ImageMagick, только для разработчика).
+`cmake --install build --prefix ~/.local` ставит бинарь в `~/.local/bin/pinch`, а также иконку (`~/.local/share/icons/hicolor/…/apps/pinch.png`) и пункт меню (`~/.local/share/applications/io.github.ufna.pinch.desktop`; `io.github.ufna.pinch` — идентификатор приложения: app_id окон под Wayland и имя для портала). Иконки в репозитории уже отрисованы; `scripts/render-icons.sh` пересобирает их из `data/icons/pinch-source.png` (нужен ImageMagick, только для разработчика).
 
 Проверка под санитайзерами:
 
@@ -49,9 +49,11 @@ Wayland (`-DPINCH_WAYLAND=ON`, по умолчанию) требует `wayland-
 в stderr, что снимок может оказаться чёрным: запускайте pinch без `QT_QPA_PLATFORM=xcb`.
 
 - **KDE.** Способ `kwin` работает только после `cmake --install`: KWin пускает к ScreenShot2 лишь программы, чей установленный
-  `pinch.desktop` содержит `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` и абсолютный `Exec=<prefix>/bin/pinch`
-  (файл генерируется из `data/pinch.desktop.in` при конфигурации). Без установки pinch откатится на портал.
-- **GNOME.** При первом снимке может понадобиться разрешение: Настройки → Приложения → pinch → Снимки экрана.
+  `io.github.ufna.pinch.desktop` содержит `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` и абсолютный
+  `Exec=<prefix>/bin/pinch` (файл генерируется из `data/io.github.ufna.pinch.desktop.in` при установке, с тем же путём, куда
+  ставится бинарь). Запускать нужно именно установленный бинарь; без установки pinch откатится на портал.
+- **GNOME.** pinch регистрируется в портале как `io.github.ufna.pinch` (имя установленного `.desktop`). При первом снимке
+  может понадобиться разрешение: Настройки → Приложения → pinch → Снимки экрана.
   Если портал отказал, pinch скажет об этом в окне с ошибкой.
 - Масштаб экрана ≠ 1: снимок приводится к логическим пикселям (чёткого HiDPI нет).
 - Повёрнутые мониторы: в способе `screencopy` кадр поворачивается по `transform` выхода (как в grim); KWin и портал
@@ -60,9 +62,13 @@ Wayland (`-DPINCH_WAYLAND=ON`, по умолчанию) требует `wayland-
 ### Горячая клавиша под Wayland
 
 - GNOME: `scripts/set-gnome-shortcut.sh` (работает и под Wayland).
-- KDE: Параметры системы → Комбинации клавиш → Добавить команду `pinch`.
+- KDE: Параметры системы → Комбинации клавиш → Добавить приложение → pinch (берётся установленный
+  `io.github.ufna.pinch.desktop` с абсолютным `Exec`, тот самый, по которому KWin разрешает снимок).
 - Hyprland: `bind = SUPER SHIFT, S, exec, pinch`
 - Sway: `bindsym $mod+Shift+s exec pinch`
+
+Для Hyprland и Sway `~/.local/bin` должен быть в `PATH` самого композитора (не только терминала); иначе укажите полный путь:
+`exec, ~/.local/bin/pinch` и `exec ~/.local/bin/pinch` (команды `exec` выполняются через `sh -c`, `~` раскрывается).
 
 ## Управление
 
@@ -89,6 +95,8 @@ Wayland (`-DPINCH_WAYLAND=ON`, по умолчанию) требует `wayland-
 sudo pacman -S qt6-base qt6-wayland qt6-tools wayland cmake gcc noto-fonts   # шрифты нужны для значков кнопок панели
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
+ctest --test-dir build --output-on-failure
+cmake --install build --prefix ~/.local   # нужно для способа kwin (KDE) и имени приложения в портале (GNOME)
 ```
 
 Если более новый компилятор добавляет свои предупреждения, а сборка падает из-за `-Werror`,

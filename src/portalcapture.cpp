@@ -1,7 +1,6 @@
 #include "portalcapture.h"
 #include "dumpable.h"
 
-#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QDeadlineTimer>
@@ -75,11 +74,14 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
     if (!bus.isConnected())
         return fail(qtTrId("error.capture.portal.call_failed").arg(bus.lastError().message()));
 
-    // 1. Регистрация приложения в портале (если реестр есть); ошибки игнорируются.
-    const QString registry = QStringLiteral("org.freedesktop.host.portal.Registry");
-    if (bus.interface() && bus.interface()->isServiceRegistered(registry).value()) {
-        QDBusMessage reg = QDBusMessage::createMethodCall(registry, PORTAL_PATH, registry, QStringLiteral("Register"));
-        reg << QStringLiteral("pinch") << QVariantMap();
+    // 1. Регистрация приложения: интерфейс org.freedesktop.host.portal.Registry у самого портала (xdg-desktop-portal
+    // ≥ 1.19). Идентификатор (имя .desktop) нужен окружению, чтобы хранить разрешение на снимки. Должна быть первым
+    // вызовом портала на этом соединении. Старый портал ответит ошибкой «нет интерфейса» — она не важна.
+    {
+        QDBusMessage reg = QDBusMessage::createMethodCall(PORTAL_SERVICE, PORTAL_PATH,
+                                                          QStringLiteral("org.freedesktop.host.portal.Registry"),
+                                                          QStringLiteral("Register"));
+        reg << QStringLiteral(PINCH_APP_ID) << QVariantMap();
         // Портал опознаёт вызывающего по /proc/<pid>/root: на время вызова процесс дампируемый (см. dumpable.h).
         ScopedDumpable dumpable;
         bus.call(reg, QDBus::Block, 2000);

@@ -208,8 +208,8 @@
         <translation>KWin ScreenShot2 call failed: %1</translation>
     </message>
     <message id="error.capture.kwin.desktop_hint">
-        <source>Install pinch.desktop (cmake --install build) so KWin can authorize pinch.</source>
-        <translation>Install pinch.desktop (cmake --install build) so KWin can authorize pinch.</translation>
+        <source>Install io.github.ufna.pinch.desktop (cmake --install build) and run the installed pinch so KWin can authorize it.</source>
+        <translation>Install io.github.ufna.pinch.desktop (cmake --install build) and run the installed pinch so KWin can authorize it.</translation>
     </message>
     <message id="error.capture.kwin.read_timeout">
         <source>timed out reading the image from KWin</source>

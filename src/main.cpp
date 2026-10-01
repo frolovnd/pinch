@@ -48,6 +48,8 @@ int main(int argc, char** argv)
     if (dumpableFailed)
         qWarning("%s", qPrintable(qtTrId("log.dumpable")));
     QApplication::setApplicationName(QStringLiteral("pinch"));
+    // Имя .desktop (без расширения): под Wayland это app_id окон, по нему окружение находит иконку и название.
+    QGuiApplication::setDesktopFileName(QStringLiteral(PINCH_APP_ID));
     QApplication::setApplicationVersion(QStringLiteral(PINCH_VERSION));
     // Иконка окна по умолчанию: её получают и стандартные диалоги (Сохранить как, сообщения).
     QApplication::setWindowIcon(appIcon());
