@@ -20,12 +20,14 @@ option(PINCH_WAYLAND "Поддержка Wayland (screencopy)" ON)
 find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Test LinguistTools)
 
 # Общие флаги для всех наших целей: предупреждения (как ошибки, если PINCH_WERROR) и hardening.
-# Флаги компиляции — только для C++: C-код в проекте лишь сгенерированный (wayland-scanner),
-# и его предупреждения (-Wpedantic) не должны ломать сборку.
+# Предупреждения — только для C++: C-код в проекте лишь сгенерированный (wayland-scanner), и его
+# предупреждения (-Wpedantic) не должны ломать сборку. Hardening — для всех языков: компоновщик
+# объединяет пометки CET (.note.gnu.property) по И, и один C-объект без -fcf-protection снял бы IBT/SHSTK.
 set(PINCH_CXX "$<COMPILE_LANGUAGE:CXX>")
 add_library(pinch_options INTERFACE)
 target_compile_options(pinch_options INTERFACE
-    "$<${PINCH_CXX}:-Wall;-Wextra;-Wpedantic;-fstack-protector-strong;-fstack-clash-protection;-fcf-protection>")
+    "$<${PINCH_CXX}:-Wall;-Wextra;-Wpedantic>"
+    -fstack-protector-strong -fstack-clash-protection -fcf-protection)
 if(PINCH_WERROR)
     target_compile_options(pinch_options INTERFACE "$<${PINCH_CXX}:-Werror>")
 endif()
@@ -33,12 +35,12 @@ target_link_options(pinch_options INTERFACE
     -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack)
 if(PINCH_SANITIZE)
     target_compile_options(pinch_options INTERFACE
-        "$<${PINCH_CXX}:-fsanitize=address,undefined;-fno-sanitize-recover=all;-fno-omit-frame-pointer;-U_FORTIFY_SOURCE>")
+        -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -U_FORTIFY_SOURCE)
     target_link_options(pinch_options INTERFACE -fsanitize=address,undefined)
 else()
     # _FORTIFY_SOURCE требует оптимизации; Ubuntu уже задаёт его сама, поэтому сначала снимаем.
     target_compile_options(pinch_options INTERFACE
-        "$<$<AND:${PINCH_CXX},$<NOT:$<CONFIG:Debug>>>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=3>")
+        "$<$<NOT:$<CONFIG:Debug>>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=3>")
 endif()
 
 add_library(pinch_core STATIC
