@@ -7,39 +7,52 @@
 #include "settings.h"
 
 #include <QImage>
-#include <optional>
+#include <QObject>
+#include <QPointer>
 #include <QString>
-#include <QWidget>
+#include <QVector>
+#include <optional>
 
+class QKeyEvent;
+class QPainter;
+class ScreenView;
 class Toolbar;
 
-// Окно поверх всех мониторов: выделение области, рисование и вывод результата.
-class Overlay : public QWidget {
+// Вся логика оверлея: выделение области, рисование и вывод результата; координаты — координаты изображения.
+// Не QWidget: окна мониторов (ScreenView) переводят свои события в координаты изображения и отдают их сюда,
+// а рисуют свою часть кадра через paint(). Контроллер должен жить дольше окон (сессию удаляют первой).
+class OverlayController : public QObject {
     Q_OBJECT
 public:
-    Overlay(Capture capture, Settings settings, QString saveDir, QWidget* parent = nullptr);
+    OverlayController(Capture capture, Settings settings, QString saveDir, QObject* parent = nullptr);
+    ~OverlayController() override; // удаляет панель инструментов
 
-    void start(); // показать, поднять и захватить клавиатуру
+    const Capture& capture() const { return m_capture; }
     QRect selection() const { return m_selection; }
     Tool tool() const { return m_tool; }
     Style style() const { return m_style; }
     const Document& document() const { return m_document; }
-    Toolbar* toolbar() const { return m_toolbar; }
+    Toolbar* toolbar() const;
     bool isEditingText() const { return m_textEditing; }
     QImage result() const; // выделенная область со всеми аннотациями
 
-signals:
-    void copyRequested(const QImage& result);
-    void finished();
+    void attachView(ScreenView* view); // окна для перерисовки, курсора и размещения панели
 
-protected:
-    void paintEvent(QPaintEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void mouseDoubleClickEvent(QMouseEvent* event) override;
-    void wheelEvent(QWheelEvent* event) override;
-    void keyPressEvent(QKeyEvent* event) override;
+    // События от окон, уже переведённые в координаты изображения:
+    void mousePress(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers mods);
+    void mouseMove(QPoint pos, Qt::MouseButtons buttons, Qt::KeyboardModifiers mods);
+    void mouseRelease(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers mods);
+    void mouseDoubleClick(QPoint pos);
+    void wheel(int angleDeltaY);
+    void keyPress(QKeyEvent* event);
+    // Рисует кадр в координатах изображения; imageRect — видимая окну часть.
+    void paint(QPainter& painter, const QRect& imageRect) const;
+
+signals:
+    void copyRequested(const QImage& result); // испускается ДО hideRequested
+    void finished();
+    void hideRequested(); // скрыть все окна (перед диалогами, после копирования/сохранения/отмены)
+    void showRequested(); // снова показать окна (отмена диалога, ошибка записи)
 
 private:
     enum class Drag { None, Selecting, Moving, Resizing, Drawing };
@@ -55,11 +68,13 @@ private:
     void saveQuick();
     void saveAs();
     void cancel();
-    void closeOverlay(); // отпустить клавиатуру и спрятать окно
     void showError(const QString& text);
     void documentChanged();
     void updateToolbar();
+    ScreenView* viewForToolbar(QPoint topLeft) const;
     void updateCursor(QPoint pos);
+    void setViewsCursor(Qt::CursorShape shape);
+    void updateViews(); // перерисовать все окна
     QRect screenAt(QPoint pos) const;
     QRect bounds() const;
     void beginAnnotation(QPoint pos);
@@ -81,7 +96,9 @@ private:
     Document m_document;
     QRect m_selection;
     QRect m_hintScreen; // монитор под курсором, пока выделения нет
-    Toolbar* m_toolbar = nullptr;
+    // Панель — дочерний виджет одного из окон, но принадлежит контроллеру (сессия отцепляет её до удаления окон).
+    QPointer<Toolbar> m_toolbar;
+    QVector<QPointer<ScreenView>> m_views;
 
     Drag m_drag = Drag::None;
     Handle m_handle = Handle::None;

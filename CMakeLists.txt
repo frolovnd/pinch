@@ -55,7 +55,9 @@ add_library(pinch_core STATIC
     src/settings.h src/settings.cpp
     src/toolbar.h src/toolbar.cpp
     src/keys.h src/keys.cpp
-    src/overlay.h src/overlay.cpp
+    src/overlaycontroller.h src/overlaycontroller.cpp
+    src/screenview.h src/screenview.cpp
+    src/overlaysession.h src/overlaysession.cpp
     src/appicon.h src/appicon.cpp
     src/i18n.h src/i18n.cpp
     src/rawimage.h src/rawimage.cpp

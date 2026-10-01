@@ -1,8 +1,9 @@
-#include "overlay.h"
+#include "overlaycontroller.h"
 
 #include "keys.h"
 #include "output.h"
 #include "renderer.h"
+#include "screenview.h"
 #include "toolbar.h"
 
 #include <QCursor>
@@ -13,10 +14,10 @@
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QMessageBox>
-#include <QMouseEvent>
 #include <QPainter>
 #include <QTextStream>
-#include <QWheelEvent>
+
+#include <utility>
 
 namespace {
 constexpr int kHandleTolerance = 6;
@@ -31,120 +32,123 @@ QColor accentColor()
 }
 }
 
-Overlay::Overlay(Capture capture, Settings settings, QString saveDir, QWidget* parent)
-    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint)
+OverlayController::OverlayController(Capture capture, Settings settings, QString saveDir, QObject* parent)
+    : QObject(parent)
     , m_capture(std::move(capture))
     , m_saveDir(std::move(saveDir))
     , m_style{settings.color, settings.thickness}
 {
-    setGeometry(QRect(m_capture.origin, m_capture.image.size()));
-    setMouseTracking(true);
-    setFocusPolicy(Qt::StrongFocus);
-    setCursor(Qt::CrossCursor);
-
     m_dimmed = m_capture.image.copy();
     {
         QPainter painter(&m_dimmed);
         painter.fillRect(m_dimmed.rect(), QColor(0, 0, 0, 120));
     }
-    m_hintScreen = screenAt(mapFromGlobal(QCursor::pos()));
+    m_hintScreen = screenAt(QCursor::pos() - m_capture.origin);
 
-    m_toolbar = new Toolbar(this);
-    m_toolbar->hide();
-    m_toolbar->setTool(m_tool);
-    m_toolbar->setColor(m_style.color);
-    m_toolbar->setThickness(m_style.thickness);
-    connect(m_toolbar, &Toolbar::toolChosen, this, &Overlay::setTool);
-    connect(m_toolbar, &Toolbar::colorChosen, this, &Overlay::setColor);
-    connect(m_toolbar, &Toolbar::thicknessChosen, this, &Overlay::setThickness);
-    connect(m_toolbar, &Toolbar::undoRequested, this, &Overlay::undo);
-    connect(m_toolbar, &Toolbar::redoRequested, this, &Overlay::redo);
-    connect(m_toolbar, &Toolbar::copyRequested, this, &Overlay::copyResult);
-    connect(m_toolbar, &Toolbar::quickSaveRequested, this, &Overlay::saveQuick);
-    connect(m_toolbar, &Toolbar::saveAsRequested, this, &Overlay::saveAs);
-    connect(m_toolbar, &Toolbar::closeRequested, this, &Overlay::cancel);
+    // Без родителя, пока не прикреплено окно: updateToolbar подвешивает панель к окну, где она лежит.
+    auto* toolbar = new Toolbar;
+    m_toolbar = toolbar;
+    toolbar->hide();
+    toolbar->setTool(m_tool);
+    toolbar->setColor(m_style.color);
+    toolbar->setThickness(m_style.thickness);
+    connect(toolbar, &Toolbar::toolChosen, this, &OverlayController::setTool);
+    connect(toolbar, &Toolbar::colorChosen, this, &OverlayController::setColor);
+    connect(toolbar, &Toolbar::thicknessChosen, this, &OverlayController::setThickness);
+    connect(toolbar, &Toolbar::undoRequested, this, &OverlayController::undo);
+    connect(toolbar, &Toolbar::redoRequested, this, &OverlayController::redo);
+    connect(toolbar, &Toolbar::copyRequested, this, &OverlayController::copyResult);
+    connect(toolbar, &Toolbar::quickSaveRequested, this, &OverlayController::saveQuick);
+    connect(toolbar, &Toolbar::saveAsRequested, this, &OverlayController::saveAs);
+    connect(toolbar, &Toolbar::closeRequested, this, &OverlayController::cancel);
 }
 
-void Overlay::start()
+OverlayController::~OverlayController()
 {
-    show();
-    raise();
-    activateWindow();
-    setFocus(Qt::OtherFocusReason);
-    grabKeyboard();
+    delete m_toolbar.data();
 }
 
-QImage Overlay::result() const
+Toolbar* OverlayController::toolbar() const
+{
+    return m_toolbar.data();
+}
+
+QImage OverlayController::result() const
 {
     return ::render(m_capture.image, m_selection, m_document.annotations());
 }
 
+void OverlayController::attachView(ScreenView* view)
+{
+    m_views.append(view);
+}
+
 // ---- Состояние ----
 
-void Overlay::setSelection(const QRect& selection)
+void OverlayController::setSelection(const QRect& selection)
 {
     m_selection = selection;
     m_cacheValid = false;
     updateToolbar();
-    update();
+    updateViews();
 }
 
-void Overlay::setTool(Tool tool)
+void OverlayController::setTool(Tool tool)
 {
     commitText();
     m_defaultToolApplied = true; // любой выбор (клавиша, панель, умолчание) отменяет дальнейший умолчательный выбор
     m_tool = tool;
     m_toolbar->setTool(tool);
-    updateCursor(mapFromGlobal(QCursor::pos()));
+    updateCursor(QCursor::pos() - m_capture.origin);
 }
 
-void Overlay::applyDefaultTool()
+void OverlayController::applyDefaultTool()
 {
     if (m_defaultToolApplied || m_selection.isEmpty())
         return;
     setTool(Tool::Pen);
 }
 
-void Overlay::setColor(const QColor& color)
+void OverlayController::setColor(const QColor& color)
 {
     m_style.color = color;
     m_toolbar->setColor(color);
     if (m_textEditing)
         m_current->style.color = color;
-    update();
+    updateViews();
 }
 
-void Overlay::setThickness(int thickness)
+void OverlayController::setThickness(int thickness)
 {
     m_style.thickness = qBound(kMinThickness, thickness, kMaxThickness);
     m_toolbar->setThickness(m_style.thickness);
     if (m_textEditing)
         m_current->style.thickness = m_style.thickness;
-    update();
+    updateViews();
 }
 
-void Overlay::undo()
+void OverlayController::undo()
 {
     commitText();
     if (m_document.undo())
         documentChanged();
 }
 
-void Overlay::redo()
+void OverlayController::redo()
 {
     commitText();
     if (m_document.redo())
         documentChanged();
 }
 
-void Overlay::documentChanged()
+void OverlayController::documentChanged()
 {
     m_cacheValid = false;
     m_toolbar->setUndoRedoEnabled(m_document.canUndo(), m_document.canRedo());
-    update();
+    updateViews();
 }
 
-void Overlay::updateToolbar()
+void OverlayController::updateToolbar()
 {
     if (m_selection.isEmpty() || m_drag == Drag::Selecting) {
         m_toolbar->hide();
@@ -152,49 +156,94 @@ void Overlay::updateToolbar()
     }
     const QSize size = m_toolbar->sizeHint();
     m_toolbar->resize(size);
-    m_toolbar->move(placeToolbar(m_selection, size, m_capture.screens));
+    const QPoint pos = placeToolbar(m_selection, size, m_capture.screens);
+    ScreenView* view = viewForToolbar(pos);
+    if (!view) {
+        m_toolbar->hide(); // окон нет — показывать панель негде
+        return;
+    }
+    // Панель — дочерний виджет окна, на чьём мониторе она лежит; выделение ушло на другой монитор — переподвешиваем.
+    if (m_toolbar->parentWidget() != view)
+        m_toolbar->setParent(view);
+    m_toolbar->move(pos - view->imageRect().topLeft());
     m_toolbar->show();
     m_toolbar->raise();
 }
 
-void Overlay::updateCursor(QPoint pos)
+ScreenView* OverlayController::viewForToolbar(QPoint topLeft) const
+{
+    // Окно, содержащее левый верхний угол панели; иначе — с наибольшим пересечением с выделением.
+    ScreenView* best = nullptr;
+    qint64 bestArea = -1;
+    for (const QPointer<ScreenView>& view : m_views) {
+        if (!view)
+            continue;
+        if (view->imageRect().contains(topLeft))
+            return view;
+        const QRect i = view->imageRect().intersected(m_selection);
+        const qint64 area = i.isEmpty() ? 0 : qint64(i.width()) * i.height();
+        if (area > bestArea) {
+            bestArea = area;
+            best = view;
+        }
+    }
+    return best;
+}
+
+void OverlayController::updateCursor(QPoint pos)
 {
     if (m_selection.isEmpty()) {
-        setCursor(Qt::CrossCursor);
+        setViewsCursor(Qt::CrossCursor);
         return;
     }
     switch (hitTestHandle(m_selection, pos, kHandleTolerance)) {
     case Handle::TopLeft:
     case Handle::BottomRight:
-        setCursor(Qt::SizeFDiagCursor);
+        setViewsCursor(Qt::SizeFDiagCursor);
         return;
     case Handle::TopRight:
     case Handle::BottomLeft:
-        setCursor(Qt::SizeBDiagCursor);
+        setViewsCursor(Qt::SizeBDiagCursor);
         return;
     case Handle::Top:
     case Handle::Bottom:
-        setCursor(Qt::SizeVerCursor);
+        setViewsCursor(Qt::SizeVerCursor);
         return;
     case Handle::Left:
     case Handle::Right:
-        setCursor(Qt::SizeHorCursor);
+        setViewsCursor(Qt::SizeHorCursor);
         return;
     case Handle::Move:
         if (m_tool == Tool::None)
-            setCursor(Qt::SizeAllCursor);
+            setViewsCursor(Qt::SizeAllCursor);
         else if (m_tool == Tool::Text)
-            setCursor(Qt::IBeamCursor);
+            setViewsCursor(Qt::IBeamCursor);
         else
-            setCursor(Qt::CrossCursor);
+            setViewsCursor(Qt::CrossCursor);
         return;
     case Handle::None:
-        setCursor(m_tool == Tool::None ? Qt::CrossCursor : Qt::ArrowCursor);
+        setViewsCursor(m_tool == Tool::None ? Qt::CrossCursor : Qt::ArrowCursor);
         return;
     }
 }
 
-QRect Overlay::screenAt(QPoint pos) const
+void OverlayController::setViewsCursor(Qt::CursorShape shape)
+{
+    for (const QPointer<ScreenView>& view : std::as_const(m_views)) {
+        if (view)
+            view->setCursor(shape);
+    }
+}
+
+void OverlayController::updateViews()
+{
+    for (const QPointer<ScreenView>& view : std::as_const(m_views)) {
+        if (view)
+            view->update();
+    }
+}
+
+QRect OverlayController::screenAt(QPoint pos) const
 {
     for (const QRect& s : m_capture.screens) {
         if (s.contains(pos))
@@ -203,14 +252,14 @@ QRect Overlay::screenAt(QPoint pos) const
     return {};
 }
 
-QRect Overlay::bounds() const
+QRect OverlayController::bounds() const
 {
     return m_capture.image.rect();
 }
 
 // ---- Рисование ----
 
-void Overlay::beginAnnotation(QPoint pos)
+void OverlayController::beginAnnotation(QPoint pos)
 {
     Annotation a;
     a.tool = m_tool;
@@ -224,7 +273,7 @@ void Overlay::beginAnnotation(QPoint pos)
     case Tool::Text:
         m_current = a;
         m_textEditing = true;
-        update();
+        updateViews();
         return;
     case Tool::Line:
     case Tool::Arrow:
@@ -240,10 +289,10 @@ void Overlay::beginAnnotation(QPoint pos)
     }
     m_current = a;
     m_drag = Drag::Drawing;
-    update();
+    updateViews();
 }
 
-void Overlay::finishAnnotation()
+void OverlayController::finishAnnotation()
 {
     if (!m_current)
         return;
@@ -278,11 +327,11 @@ void Overlay::finishAnnotation()
         m_document.add(a);
         documentChanged();
     } else {
-        update();
+        updateViews();
     }
 }
 
-void Overlay::commitText()
+void OverlayController::commitText()
 {
     if (!m_textEditing)
         return;
@@ -293,11 +342,11 @@ void Overlay::commitText()
         m_document.add(a);
         documentChanged();
     } else {
-        update();
+        updateViews();
     }
 }
 
-bool Overlay::handleTextKey(QKeyEvent* event)
+bool OverlayController::handleTextKey(QKeyEvent* event)
 {
     if (!m_textEditing)
         return false;
@@ -307,7 +356,7 @@ bool Overlay::handleTextKey(QKeyEvent* event)
     }
     if (event->modifiers().testFlag(Qt::ControlModifier)) {
         commitText();
-        return false; // сочетание обработает keyPressEvent
+        return false; // сочетание обработает keyPress
     }
     switch (event->key()) {
     case Qt::Key_Backspace:
@@ -324,11 +373,11 @@ bool Overlay::handleTextKey(QKeyEvent* event)
         break;
     }
     }
-    update();
+    updateViews();
     return true;
 }
 
-void Overlay::paintCurrent(QPainter& painter) const
+void OverlayController::paintCurrent(QPainter& painter) const
 {
     if (!m_current)
         return;
@@ -350,23 +399,18 @@ void Overlay::paintCurrent(QPainter& painter) const
 
 // ---- Вывод ----
 
-void Overlay::closeOverlay()
-{
-    releaseKeyboard();
-    hide();
-}
-
-void Overlay::copyResult()
+void OverlayController::copyResult()
 {
     commitText();
     if (m_selection.isEmpty())
         return;
     const QImage image = result();
-    closeOverlay();
+    // Сначала буфер, потом скрытие: под Wayland буфер назначается, только пока окно видимо и в фокусе.
     emit copyRequested(image);
+    emit hideRequested();
 }
 
-void Overlay::saveQuick()
+void OverlayController::saveQuick()
 {
     commitText();
     if (m_selection.isEmpty())
@@ -378,17 +422,17 @@ void Overlay::saveQuick()
         return;
     }
     QTextStream(stdout) << path << Qt::endl;
-    closeOverlay();
+    emit hideRequested();
     emit finished();
 }
 
-void Overlay::saveAs()
+void OverlayController::saveAs()
 {
     commitText();
     if (m_selection.isEmpty())
         return;
     const QImage image = result();
-    closeOverlay(); // окно поверх всех: иначе диалог окажется под ним
+    emit hideRequested(); // окна поверх всех: иначе диалог окажется под ними
 
     // Собственный диалог Qt: суффикс .png добавляется до вопроса о перезаписи.
     QFileDialog dialog(nullptr, qtTrId("dialog.save.title"));
@@ -399,7 +443,7 @@ void Overlay::saveAs()
     dialog.setDirectory(m_saveDir);
     dialog.selectFile(quickSaveFileName(QDateTime::currentDateTime(), 0));
     if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
-        start();
+        emit showRequested();
         return;
     }
 
@@ -416,27 +460,26 @@ void Overlay::saveAs()
     emit finished();
 }
 
-void Overlay::cancel()
+void OverlayController::cancel()
 {
-    closeOverlay();
+    emit hideRequested();
     emit finished();
 }
 
-void Overlay::showError(const QString& text)
+void OverlayController::showError(const QString& text)
 {
-    closeOverlay();
+    emit hideRequested();
     QMessageBox::critical(nullptr, qtTrId("dialog.error.title"), text);
-    start();
+    emit showRequested();
 }
 
 // ---- Мышь и клавиатура ----
 
-void Overlay::mousePressEvent(QMouseEvent* event)
+void OverlayController::mousePress(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers /*mods*/)
 {
-    if (event->button() != Qt::LeftButton)
+    if (button != Qt::LeftButton)
         return;
     commitText(); // клик в любом месте завершает вводимый текст
-    const QPoint pos = event->position().toPoint();
     m_pressPos = pos;
     m_selectionAtPress = m_selection;
 
@@ -466,9 +509,8 @@ void Overlay::mousePressEvent(QMouseEvent* event)
     beginAnnotation(pos);
 }
 
-void Overlay::mouseMoveEvent(QMouseEvent* event)
+void OverlayController::mouseMove(QPoint pos, Qt::MouseButtons /*buttons*/, Qt::KeyboardModifiers mods)
 {
-    const QPoint pos = event->position().toPoint();
     switch (m_drag) {
     case Drag::None:
         updateCursor(pos);
@@ -476,7 +518,7 @@ void Overlay::mouseMoveEvent(QMouseEvent* event)
             const QRect screen = screenAt(pos);
             if (screen != m_hintScreen) {
                 m_hintScreen = screen;
-                update();
+                updateViews();
             }
         }
         return;
@@ -496,23 +538,22 @@ void Overlay::mouseMoveEvent(QMouseEvent* event)
                 a.points.append(pos);
         } else {
             QPoint end = pos;
-            if (event->modifiers().testFlag(Qt::ShiftModifier)) {
+            if (mods.testFlag(Qt::ShiftModifier)) {
                 const bool line = a.tool == Tool::Line || a.tool == Tool::Arrow;
                 end = line ? snapLine45(a.points.at(0), pos) : snapSquare(a.points.at(0), pos);
             }
             a.points[1] = end;
         }
-        update();
+        updateViews();
         return;
     }
     }
 }
 
-void Overlay::mouseReleaseEvent(QMouseEvent* event)
+void OverlayController::mouseRelease(QPoint pos, Qt::MouseButton button, Qt::KeyboardModifiers /*mods*/)
 {
-    if (event->button() != Qt::LeftButton)
+    if (button != Qt::LeftButton)
         return;
-    const QPoint pos = event->position().toPoint();
     const Drag drag = m_drag;
     m_drag = Drag::None;
     m_handle = Handle::None;
@@ -531,16 +572,15 @@ void Overlay::mouseReleaseEvent(QMouseEvent* event)
     updateCursor(pos);
 }
 
-// Двойной клик не должен работать как второе нажатие (Qt по умолчанию вызывает mousePressEvent).
-void Overlay::mouseDoubleClickEvent(QMouseEvent* event)
+// Двойной клик не должен работать как второе нажатие: окно не передаёт его как mousePress, здесь — ничего.
+void OverlayController::mouseDoubleClick(QPoint /*pos*/)
 {
-    event->accept();
 }
 
-void Overlay::wheelEvent(QWheelEvent* event)
+void OverlayController::wheel(int angleDeltaY)
 {
     // Тачпады и hi-res колёса шлют дробные шаги: копим, меняем толщину на 1 за каждые 120 единиц.
-    const int delta = event->angleDelta().y();
+    const int delta = angleDeltaY;
     // Смена направления сбрасывает остаток: иначе он гасил бы первые единицы обратного движения.
     if ((delta > 0 && m_wheelAccumulator < 0) || (delta < 0 && m_wheelAccumulator > 0))
         m_wheelAccumulator = 0;
@@ -550,10 +590,9 @@ void Overlay::wheelEvent(QWheelEvent* event)
         m_wheelAccumulator -= steps * 120;
         setThickness(m_style.thickness + steps);
     }
-    event->accept();
 }
 
-void Overlay::keyPressEvent(QKeyEvent* event)
+void OverlayController::keyPress(QKeyEvent* event)
 {
     if (handleTextKey(event))
         return;
@@ -621,10 +660,9 @@ void Overlay::keyPressEvent(QKeyEvent* event)
 
 // ---- Отрисовка ----
 
-void Overlay::paintEvent(QPaintEvent*)
+void OverlayController::paint(QPainter& painter, const QRect& imageRect) const
 {
-    QPainter painter(this);
-    painter.drawImage(0, 0, m_dimmed);
+    painter.drawImage(imageRect.topLeft(), m_dimmed, imageRect); // только видимая окну часть фона
     if (m_selection.isEmpty()) {
         if (m_drag == Drag::None)
             paintHint(painter);
@@ -640,7 +678,7 @@ void Overlay::paintEvent(QPaintEvent*)
     paintSizeLabel(painter);
 }
 
-void Overlay::paintSelectionFrame(QPainter& painter) const
+void OverlayController::paintSelectionFrame(QPainter& painter) const
 {
     const QRect& s = m_selection;
     painter.setPen(QPen(accentColor(), 1));
@@ -657,7 +695,7 @@ void Overlay::paintSelectionFrame(QPainter& painter) const
         painter.drawRect(QRect(p.x() - kHandleSize / 2, p.y() - kHandleSize / 2, kHandleSize, kHandleSize));
 }
 
-void Overlay::paintSizeLabel(QPainter& painter) const
+void OverlayController::paintSizeLabel(QPainter& painter) const
 {
     const QString text = QStringLiteral("%1×%2").arg(m_selection.width()).arg(m_selection.height());
     const QFontMetrics metrics(painter.font());
@@ -672,11 +710,11 @@ void Overlay::paintSizeLabel(QPainter& painter) const
     painter.drawText(box, Qt::AlignCenter, text);
 }
 
-void Overlay::paintHint(QPainter& painter) const
+void OverlayController::paintHint(QPainter& painter) const
 {
     QRect screen = m_hintScreen;
     if (screen.isEmpty())
-        screen = m_capture.screens.isEmpty() ? rect() : m_capture.screens.constFirst();
+        screen = m_capture.screens.isEmpty() ? bounds() : m_capture.screens.constFirst();
     const QString text = qtTrId("overlay.hint");
     QFont font = painter.font();
     font.setPixelSize(18);

@@ -4,7 +4,8 @@
 #include "i18n.h"
 #include "instancelock.h"
 #include "output.h"
-#include "overlay.h"
+#include "overlaycontroller.h"
+#include "overlaysession.h"
 #include "settings.h"
 
 #include <QApplication>
@@ -17,11 +18,11 @@
 #include <sys/prctl.h>
 
 namespace {
-void saveStyle(const Overlay& overlay)
+void saveStyle(const OverlayController& controller)
 {
     Settings settings;
-    settings.color = overlay.style().color;
-    settings.thickness = overlay.style().thickness;
+    settings.color = controller.style().color;
+    settings.thickness = controller.style().thickness;
     settings.save();
 }
 }
@@ -82,19 +83,23 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto* overlay = new Overlay(std::move(*capture), Settings::load(), screenshotsDir());
+    auto* controller = new OverlayController(std::move(*capture), Settings::load(), screenshotsDir());
+    auto* session = new OverlaySession(controller);
 
-    QObject::connect(overlay, &Overlay::finished, &app, [overlay] {
-        saveStyle(*overlay);
+    QObject::connect(controller, &OverlayController::finished, &app, [controller] {
+        saveStyle(*controller);
         QApplication::quit();
     });
-    QObject::connect(overlay, &Overlay::copyRequested, &app, [overlay, &lock](const QImage& image) {
-        saveStyle(*overlay);
+    QObject::connect(controller, &OverlayController::copyRequested, &app,
+                     [controller, session, &lock](const QImage& image) {
+        saveStyle(*controller);
         lock.release(); // следующий хоткей может открыть новый оверлей, пока мы держим буфер
         copyToClipboard(image);
         // Снимок всего рабочего стола (с копиями) больше не нужен: освобождаем память, пока владеем буфером.
-        // deleteLater, а не delete: мы внутри испускания сигнала самого оверлея.
-        overlay->deleteLater();
+        // deleteLater, а не delete: мы внутри испускания сигнала контроллера (после него он ещё скроет окна).
+        // Сессия — первой: её окна обращаются к контроллеру.
+        session->deleteLater();
+        controller->deleteLater();
         // На X11 данные буфера отдаёт процесс-владелец: живём, пока буфер не займёт кто-то другой.
         QClipboard* clipboard = QGuiApplication::clipboard();
         QObject::connect(clipboard, &QClipboard::changed, clipboard, [clipboard](QClipboard::Mode mode) {
@@ -103,9 +108,12 @@ int main(int argc, char** argv)
         });
     });
 
-    QPointer<Overlay> guard(overlay);
-    overlay->start();
+    QPointer<OverlaySession> sessionGuard(session);
+    QPointer<OverlayController> controllerGuard(controller);
+    session->show();
     const int rc = app.exec();
-    delete guard.data(); // Esc/сохранение: оверлей не удалялся; после deleteLater указатель уже null
+    // Esc/сохранение: сессия и контроллер не удалялись; после deleteLater указатели уже null. Сессия — первой.
+    delete sessionGuard.data();
+    delete controllerGuard.data();
     return rc;
 }
