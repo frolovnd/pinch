@@ -103,6 +103,7 @@ private:
 struct Output {
     WlPtr<wl_output, releaseOutput> proxy;
     QString name; // wl_output.name (v4); пусто, если композитор его не прислал
+    int transform = WL_OUTPUT_TRANSFORM_NORMAL; // wl_output.geometry: ориентация буфера относительно экрана
 };
 
 // Один кадр screencopy: объект кадра, memfd с отображением и wl_buffer поверх него.
@@ -234,9 +235,13 @@ bool roundtrip(wl_display* display, const Deadline& deadline, QString* error)
     return dispatchUntil(display, deadline, [&done] { return done; }, error);
 }
 
-// --- wl_output: нужно только имя (событие name, v4) ---
+// --- wl_output: нужны имя (событие name, v4) и поворот (transform из geometry) ---
 
-void onOutputGeometry(void*, wl_output*, int32_t, int32_t, int32_t, int32_t, int32_t, const char*, const char*, int32_t) {}
+void onOutputGeometry(void* data, wl_output*, int32_t, int32_t, int32_t, int32_t, int32_t, const char*, const char*,
+                      int32_t transform)
+{
+    static_cast<Output*>(data)->transform = transform;
+}
 void onOutputMode(void*, wl_output*, uint32_t, int32_t, int32_t, int32_t) {}
 void onOutputDone(void*, wl_output*) {}
 void onOutputScale(void*, wl_output*, int32_t) {}
@@ -437,7 +442,11 @@ std::optional<Capture> captureWithScreencopy(const QVector<NamedScreen>& screens
         const auto image = imageFromShm(f.mapping.data(), f.mapping.size(), f.width, f.height, f.stride, f.format, f.yInvert);
         if (!image)
             return fail(qtTrId("error.capture.screencopy.bad_buffer"));
-        images << *image;
+        // Кадр — в ориентации буфера выхода; повёрнутый монитор приводим к экранной ориентации до склейки.
+        const QImage oriented = applyOutputTransform(*image, s.outputs[i]->transform);
+        if (oriented.isNull())
+            return fail(qtTrId("error.capture.screencopy.bad_buffer"));
+        images << oriented;
         names << s.outputs[i]->name;
     }
 

@@ -1,5 +1,7 @@
 #include "rawimage.h"
 
+#include <QTransform>
+
 #include <algorithm>
 #include <cstring>
 #include <iterator>
@@ -84,6 +86,20 @@ std::optional<QImage> imageFromKWin(const QByteArray& data, int width, int heigh
     if (converted.isNull())
         return std::nullopt;
     return converted.copy();
+}
+
+QImage applyOutputTransform(const QImage& image, int wlTransform)
+{
+    if (wlTransform < 0 || wlTransform > 7)
+        return {};
+    // Повороты на 90° кратно и отражения у QImage точные (перестановка пикселей, без интерполяции).
+    QImage out = image;
+    const int quarterTurns = wlTransform & 3; // 90, 180, 270 (младшие биты; бит 4 — flipped)
+    if (quarterTurns != 0)
+        out = out.transformed(QTransform().rotate(90.0 * quarterTurns)); // в QImage (y вниз) — по часовой стрелке
+    if (wlTransform & 4)
+        out = out.mirrored(true, false);
+    return out;
 }
 
 QVector<QRect> matchScreens(const QStringList& outputNames, const QVector<NamedScreen>& screens)

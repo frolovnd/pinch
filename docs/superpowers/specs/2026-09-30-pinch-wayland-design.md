@@ -57,6 +57,7 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
 - Реестр: `wl_output` (версия ≥ 4 ради события `name`), `wl_shm`, `zwlr_screencopy_manager_v1`. Описание протокола `wlr-screencopy-unstable-v1.xml` (MIT) лежит в `protocols/`; код генерирует `wayland-scanner` при сборке.
 - Для каждого монитора: `capture_output(overlay_cursor = 0)`; по событию `buffer` создаём `wl_shm_pool` на `memfd_create("pinch-screencopy", MFD_CLOEXEC | MFD_ALLOW_SEALING)` нужного размера; `copy`; ждём `ready` или `failed` (таймаут 5 с на всё).
 - Форматы: `XRGB8888`, `ARGB8888` → `QImage::Format_RGB32`; `XBGR8888`, `ABGR8888` → через `rgbSwapped()`; флаг `y_invert` → `mirrored(false, true)`. Другой формат → ошибка метода.
+- Поворот монитора: кадр приходит в ориентации буфера выхода; `transform` из `wl_output.geometry` (все 8 значений `wl_output_transform`) применяется до склейки — `applyOutputTransform` (поворот на 90·k° по часовой стрелке, затем для `flipped_*` отражение по горизонтали, как в grim). Неизвестное значение → ошибка метода.
 - Сопоставление с `QScreen`: по имени (`wl_output.name` == `QScreen::name()`); если имён нет — по порядку. Геометрия — из `QScreen::geometry()`. Затем `composeScreens`.
 - Всё освобождается (munmap, close memfd, destroy объектов, `wl_display_disconnect`) при любом исходе.
 

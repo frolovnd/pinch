@@ -16,7 +16,31 @@ QByteArray buffer(std::initializer_list<quint32> words, int stride = 12, int wid
     }
     return b;
 }
+
+// Изображение по строкам из букв: каждая буква — свой цвет (a, b, c, ... различимы).
+QImage letters(const QStringList& rows)
+{
+    QImage image(rows.first().size(), rows.size(), QImage::Format_RGB32);
+    for (int y = 0; y < rows.size(); ++y)
+        for (int x = 0; x < rows[y].size(); ++x)
+            image.setPixel(x, y, qRgb(rows[y][x].unicode(), 0x10 * x, 0x20 * y));
+    return image;
 }
+
+// Цвет буквы не зависит от её места: сравниваются буквы, а не координаты.
+QStringList toLetters(const QImage& image)
+{
+    QStringList rows;
+    for (int y = 0; y < image.height(); ++y) {
+        QString row;
+        for (int x = 0; x < image.width(); ++x)
+            row += QChar(qRed(image.pixel(x, y)));
+        rows << row;
+    }
+    return rows;
+}
+}
+
 
 class TestRawImage : public QObject {
     Q_OBJECT
@@ -77,6 +101,39 @@ private slots:
         QVERIFY(!imageFromKWin(b.left(20), 2, 2, 12, QImage::Format_RGB32).has_value()); // данных меньше stride*height
         QVERIFY(!imageFromKWin(b, 2, 2, 4, QImage::Format_RGB32).has_value());
         QVERIFY(!imageFromKWin(b, -1, 2, 12, QImage::Format_RGB32).has_value());
+    }
+
+    // Кадр выхода 3×2 «abc/def» в ориентации буфера → логическая (экранная) ориентация для всех 8 wl_output_transform.
+    // Ожидания выведены вручную: поворот на 90·k° по часовой стрелке, затем для flipped_* — отражение по горизонтали.
+    void outputTransform_data()
+    {
+        QTest::addColumn<int>("transform");
+        QTest::addColumn<QStringList>("expected");
+        QTest::newRow("normal") << 0 << QStringList{QStringLiteral("abc"), QStringLiteral("def")};
+        QTest::newRow("90") << 1 << QStringList{QStringLiteral("da"), QStringLiteral("eb"), QStringLiteral("fc")};
+        QTest::newRow("180") << 2 << QStringList{QStringLiteral("fed"), QStringLiteral("cba")};
+        QTest::newRow("270") << 3 << QStringList{QStringLiteral("cf"), QStringLiteral("be"), QStringLiteral("ad")};
+        QTest::newRow("flipped") << 4 << QStringList{QStringLiteral("cba"), QStringLiteral("fed")};
+        QTest::newRow("flipped_90") << 5 << QStringList{QStringLiteral("ad"), QStringLiteral("be"), QStringLiteral("cf")};
+        QTest::newRow("flipped_180") << 6 << QStringList{QStringLiteral("def"), QStringLiteral("abc")};
+        QTest::newRow("flipped_270") << 7 << QStringList{QStringLiteral("fc"), QStringLiteral("eb"), QStringLiteral("da")};
+    }
+
+    void outputTransform()
+    {
+        QFETCH(int, transform);
+        QFETCH(QStringList, expected);
+        const QImage out = applyOutputTransform(letters({QStringLiteral("abc"), QStringLiteral("def")}), transform);
+        QCOMPARE(out.format(), QImage::Format_RGB32);
+        QCOMPARE(out.size(), QSize(expected.first().size(), expected.size()));
+        QCOMPARE(toLetters(out), expected);
+    }
+
+    void outputTransformRejectsUnknown()
+    {
+        const QImage source = letters({QStringLiteral("abc"), QStringLiteral("def")});
+        QVERIFY(applyOutputTransform(source, 8).isNull());
+        QVERIFY(applyOutputTransform(source, -1).isNull());
     }
 
     void matchByName()

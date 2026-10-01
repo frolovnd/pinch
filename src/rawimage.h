@@ -27,6 +27,13 @@ std::optional<QImage> imageFromShm(const uchar* data, qsizetype dataSize, int wi
 // stride % 4 != 0, огромные размеры, data.size() < stride*height, переполнение при вычислении размеров.
 std::optional<QImage> imageFromKWin(const QByteArray& data, int width, int height, int stride, int qimageFormat);
 
+// Кадр screencopy приходит в ориентации буфера выхода. transform из wl_output.geometry (0–7: normal, 90, 180, 270,
+// flipped, flipped_90, flipped_180, flipped_270) — то, чем композитор получил буфер из логической картинки: поворот на
+// 90·k° против часовой стрелки (для flipped_* — после отражения по горизонтали). Возвращает картинку в логической
+// (экранной) ориентации: поворот на 90·k° по часовой стрелке, затем для flipped_* — отражение по горизонтали (как в grim).
+// Неизвестное значение — пустое изображение (композитор недоверенный).
+QImage applyOutputTransform(const QImage& image, int wlTransform);
+
 struct NamedScreen {
     QString name;
     QRect geometry;

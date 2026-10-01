@@ -2,7 +2,7 @@
 // с именами и zwlr_screencopy_manager_v1 v3. Только для тестов; в pinch не входит.
 // Запуск: fake_compositor <имя сокета> <режим>; сокет создаётся в $XDG_RUNTIME_DIR, затем в stdout пишется «ready».
 // Режимы: ok, yinvert, xbgr, hidpi, twoout, manyoutputs, fail, hang, bigbuf, badformat, nomanager, noshm,
-// disconnect, protoerror, dupbuffer, readyfirst.
+// disconnect, protoerror, dupbuffer, readyfirst, rot90, badtransform.
 #include "wlr-screencopy-unstable-v1-server-protocol.h"
 
 #include <wayland-server.h>
@@ -19,12 +19,15 @@ std::string g_mode;
 
 // Метка верхних строк кадра (XRGB, красный) — по ней тест проверяет y_invert и порядок строк.
 constexpr uint32_t kMarker = 0x00ff0000;
+// Метка левого верхнего пикселя буфера (XRGB, синий) — только в режиме rot90: по ней тест проверяет поворот целиком.
+constexpr uint32_t kCorner = 0x000000ff;
 
 struct OutInfo {
     std::string name;
-    int width;
+    int width;  // размер режима (буфера), не логический
     int height;
     uint32_t fill; // XRGB8888
+    int32_t transform = WL_OUTPUT_TRANSFORM_NORMAL;
 };
 std::vector<OutInfo> g_outputs;
 
@@ -43,7 +46,7 @@ void bindOutput(wl_client* client, void* data, uint32_t version, uint32_t id)
         return;
     }
     wl_resource_set_implementation(r, &kOutputImpl, info, nullptr);
-    wl_output_send_geometry(r, 0, 0, 300, 200, WL_OUTPUT_SUBPIXEL_UNKNOWN, "fake", "fake", WL_OUTPUT_TRANSFORM_NORMAL);
+    wl_output_send_geometry(r, 0, 0, 300, 200, WL_OUTPUT_SUBPIXEL_UNKNOWN, "fake", "fake", info->transform);
     wl_output_send_mode(r, WL_OUTPUT_MODE_CURRENT, info->width, info->height, 60000);
     if (version >= WL_OUTPUT_SCALE_SINCE_VERSION)
         wl_output_send_scale(r, 1);
@@ -91,7 +94,9 @@ void frameCopy(wl_client* client, wl_resource* frame, wl_resource* buffer)
     auto* data = static_cast<uint8_t*>(wl_shm_buffer_get_data(shm));
     for (int y = 0; y < info->height; ++y) {
         for (int x = 0; x < info->width; ++x) {
-            const uint32_t v = y < markerRows ? kMarker : info->output->fill;
+            uint32_t v = y < markerRows ? kMarker : info->output->fill;
+            if (g_mode == "rot90" && x == 0 && y == 0)
+                v = kCorner;
             std::memcpy(data + y * info->stride + x * 4, &v, 4);
         }
     }
@@ -192,6 +197,11 @@ int main(int argc, char** argv)
     } else if (g_mode == "manyoutputs") {
         for (int i = 0; i < 17; ++i)
             g_outputs.push_back({"OUT-" + std::to_string(i), 8, 8, 0x00112233});
+    } else if (g_mode == "rot90") {
+        // Буфер 64×48 в ориентации монитора; на экране (логически) выход повёрнут: 48×64.
+        g_outputs = {{"OUT-A", 64, 48, 0x00112233, WL_OUTPUT_TRANSFORM_90}};
+    } else if (g_mode == "badtransform") { // значение вне wl_output_transform (0–7)
+        g_outputs = {{"OUT-A", 64, 48, 0x00112233, 9}};
     } else {
         g_outputs = {{"OUT-A", 64, 48, 0x00112233}};
     }

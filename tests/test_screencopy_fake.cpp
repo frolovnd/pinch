@@ -151,6 +151,19 @@ private slots:
             << QVector<NamedScreen>{{QStringLiteral("OUT-B"), QRect(64, 0, 32, 16)}, {QStringLiteral("OUT-A"), QRect(0, 0, 64, 48)}}
             << t << true << two << QVector<QRect>{QRect(0, 0, 64, 48), QRect(64, 0, 32, 16)} << QString() << false;
 
+        // Выход повёрнут (wl_output transform 90): буфер 64×48 с меткой сверху и синим левым верхним пикселем.
+        // Поворот на 90° по часовой стрелке: верхняя строка буфера — правый столбец, её начало — правый верхний угол.
+        QImage rotated(48, 64, QImage::Format_RGB32);
+        rotated.fill(kFillA);
+        for (int y = 0; y < 64; ++y)
+            rotated.setPixel(47, y, kMarker);
+        rotated.setPixel(47, 0, qRgb(0, 0, 0xff));
+        QTest::newRow("rotated 90") << "rot90" << QVector<NamedScreen>{{QStringLiteral("OUT-A"), QRect(0, 0, 48, 64)}} << t
+                                    << true << rotated << QVector<QRect>{QRect(0, 0, 48, 64)} << QString() << false;
+
+        QTest::newRow("unknown transform") << "badtransform" << one << t << true << QImage() << QVector<QRect>() << badBuffer
+                                           << false;
+
         QTest::newRow("duplicate buffer event ignored") << "dupbuffer" << one << t << true << outputImage({64, 48}, kFillA)
                                                         << oneRect << QString() << false;
         QTest::newRow("ready before copy") << "readyfirst" << one << t << true << QImage() << QVector<QRect>() << frameFailed
