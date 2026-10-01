@@ -53,6 +53,7 @@ add_library(pinch_core STATIC
     src/overlay.h src/overlay.cpp
     src/appicon.h src/appicon.cpp
     src/i18n.h src/i18n.cpp
+    src/rawimage.h src/rawimage.cpp
 )
 # Иконки окна встроены в бинарь (для диалогов и заголовков); установка hicolor — ниже.
 qt_add_resources(pinch_core "icons" PREFIX "/icons" BASE "data/icons/hicolor" FILES

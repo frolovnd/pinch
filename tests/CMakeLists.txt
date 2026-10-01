@@ -23,6 +23,7 @@ pinch_add_test(test_keys)
 pinch_add_test(test_overlay)
 pinch_add_test(test_appicon)
 pinch_add_test(test_i18n)
+pinch_add_test(test_rawimage)
 
 # Проверка согласованности ключей локализации и таблиц (без сборки).
 add_test(NAME check_i18n
