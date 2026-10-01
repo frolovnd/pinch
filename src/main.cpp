@@ -76,14 +76,20 @@ int main(int argc, char** argv)
         }
     }
 
+    const CaptureEnvironment environment = detectEnvironment();
+    if (xwaylandFallback(environment))
+        qWarning("%s", qPrintable(qtTrId("warning.capture.xwayland")));
     QStringList captureErrors;
-    std::optional<Capture> capture = captureScreens(detectEnvironment(), &captureErrors);
+    CaptureMethod method = CaptureMethod::X11;
+    std::optional<Capture> capture = captureScreens(environment, &captureErrors, &method);
     if (!capture) {
         const QString text = qtTrId("error.capture.failed") + QLatin1Char('\n') + captureErrors.join(QLatin1Char('\n'));
         qCritical("%s", qPrintable(text));
         QMessageBox::critical(nullptr, qtTrId("error.capture.title"), text);
         return 1;
     }
+    // Какой способ сработал — для ручной проверки (README) и отчётов об ошибках.
+    qInfo("%s", qPrintable(qtTrId("log.capture.method").arg(captureMethodName(method))));
 
     auto* controller = new OverlayController(std::move(*capture), Settings::load(), screenshotsDir());
     auto* session = new OverlaySession(controller);

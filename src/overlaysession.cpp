@@ -1,5 +1,6 @@
 #include "overlaysession.h"
 
+#include "capturebackend.h"
 #include "overlaycontroller.h"
 #include "screenview.h"
 #include "toolbar.h"
@@ -72,7 +73,7 @@ void OverlaySession::show()
 {
     if (!m_controller || m_views.isEmpty())
         return;
-    const bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");
+    const bool wayland = isWaylandPlatform(QGuiApplication::platformName());
     const QPoint origin = m_controller->capture().origin;
     for (ScreenView* view : std::as_const(m_views)) {
         if (wayland) {

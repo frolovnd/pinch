@@ -37,7 +37,7 @@ struct CaptureEnvironment {           // факты о сеансе, собра�
     bool hasKWinScreenShot2 = false;   // на сессионной шине есть org.kde.KWin с интерфейсом ScreenShot2
     QString forced;                    // значение PINCH_CAPTURE (x11|screencopy|kwin|portal) или пусто
 };
-// Чистая функция: порядок попыток. xcb → {X11}; wayland → screencopy (если есть), kwin (если есть), portal.
+// Чистая функция: порядок попыток. xcb → {X11}; wayland* (wayland, wayland-egl, …) → screencopy (если есть), kwin (если есть), portal.
 // PINCH_CAPTURE=… оставляет только указанный метод (для отладки и ручной проверки).
 QVector<CaptureMethod> captureOrder(const CaptureEnvironment& env);
 // Пробует методы по порядку; первый успешный возвращает Capture. Ошибки каждого метода копятся в *errors.
@@ -45,6 +45,8 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
 ```
 
 Структура `Capture` (image, origin, screens) не меняется. Во всех бэкендах координаты — логические координаты рабочего стола из `QScreen::geometry()`; картинка каждого монитора масштабируется в свой логический прямоугольник (`composeScreens` уже это делает).
+
+Успешный способ печатается одной строкой в stderr (`pinch: способ снимка — kwin`). Если Qt работает через `xcb`, а `WAYLAND_DISPLAY` задан (Xwayland в сеансе Wayland), в stderr идёт предупреждение: снимок способом `x11` может оказаться чёрным.
 
 Если все методы не удались — `QMessageBox::critical` с перечнем ошибок (тексты — ключи `qtTrId`, таблицы `translations/pinch_{en,ru}.ts`, язык из системы, запасной — английский) и выход с кодом 1.
 

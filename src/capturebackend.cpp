@@ -18,6 +18,16 @@ QString captureMethodName(CaptureMethod m)
     return {};
 }
 
+bool isWaylandPlatform(const QString& platformName)
+{
+    return platformName.startsWith(QLatin1String("wayland"));
+}
+
+bool xwaylandFallback(const CaptureEnvironment& env)
+{
+    return env.waylandDisplay && env.platformName == QLatin1String("xcb") && captureOrder(env).contains(CaptureMethod::X11);
+}
+
 QVector<CaptureMethod> captureOrder(const CaptureEnvironment& env)
 {
     if (!env.forced.isEmpty()) {
@@ -26,7 +36,7 @@ QVector<CaptureMethod> captureOrder(const CaptureEnvironment& env)
                 return {m};
         return {};
     }
-    if (env.platformName != QLatin1String("wayland"))
+    if (!isWaylandPlatform(env.platformName))
         return {CaptureMethod::X11};
     QVector<CaptureMethod> order;
     if (env.hasScreencopy)
@@ -42,15 +52,16 @@ CaptureEnvironment detectEnvironment()
     CaptureEnvironment env;
     env.platformName = QGuiApplication::platformName();
     env.forced = QString::fromLocal8Bit(qgetenv("PINCH_CAPTURE")).trimmed().toLower();
-    if (env.platformName == QLatin1String("wayland")) {
+    env.waylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
+    if (isWaylandPlatform(env.platformName)) {
         env.hasScreencopy = screencopyAvailable();
         env.hasKWinScreenShot2 = kwinScreenShotAvailable(QDBusConnection::sessionBus());
     }
     return env;
 }
 
-std::optional<Capture> captureScreensWith(const QVector<CaptureMethod>& order,
-                                          const QMap<CaptureMethod, CaptureFn>& fns, QStringList* errors)
+std::optional<Capture> captureScreensWith(const QVector<CaptureMethod>& order, const QMap<CaptureMethod, CaptureFn>& fns,
+                                          QStringList* errors, CaptureMethod* used)
 {
     for (CaptureMethod m : order) {
         QString error;
@@ -60,15 +71,18 @@ std::optional<Capture> captureScreensWith(const QVector<CaptureMethod>& order,
             c = fn(&error);
         else
             error = qtTrId("error.capture.unavailable_in_build");
-        if (c)
+        if (c) {
+            if (used)
+                *used = m;
             return c;
+        }
         if (errors)
             *errors << captureMethodName(m) + QStringLiteral(": ") + (error.isEmpty() ? qtTrId("error.capture.unknown") : error);
     }
     return std::nullopt;
 }
 
-std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList* errors)
+std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList* errors, CaptureMethod* used)
 {
     const QVector<CaptureMethod> order = captureOrder(env);
     if (order.isEmpty()) {
@@ -104,5 +118,5 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
             geometries << s->geometry();
         return captureWithPortal(QDBusConnection::sessionBus(), geometries, error);
     };
-    return captureScreensWith(order, fns, errors);
+    return captureScreensWith(order, fns, errors, used);
 }

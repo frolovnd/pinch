@@ -47,6 +47,35 @@ private slots:
                  (QVector<CaptureMethod>{CaptureMethod::Screencopy, CaptureMethod::KWin, CaptureMethod::Portal}));
     }
 
+    // Qt называет платформу Wayland и «wayland-egl» (и другими вариантами с этим началом).
+    void waylandPlatformVariants()
+    {
+        QVERIFY(isWaylandPlatform(QStringLiteral("wayland")));
+        QVERIFY(isWaylandPlatform(QStringLiteral("wayland-egl")));
+        QVERIFY(!isWaylandPlatform(QStringLiteral("xcb")));
+        QVERIFY(!isWaylandPlatform(QStringLiteral("offscreen")));
+        QCOMPARE(captureOrder(env("wayland-egl")), (QVector<CaptureMethod>{CaptureMethod::Portal}));
+        QCOMPARE(captureOrder(env("wayland-egl", true, true)),
+                 (QVector<CaptureMethod>{CaptureMethod::Screencopy, CaptureMethod::KWin, CaptureMethod::Portal}));
+    }
+
+    // QT_QPA_PLATFORM=xcb в сеансе Wayland (Xwayland): снимок через X11 может быть чёрным — нужно предупреждение.
+    void xwaylandFallbackDetected()
+    {
+        CaptureEnvironment e = env("xcb");
+        e.waylandDisplay = true;
+        QVERIFY(xwaylandFallback(e));
+        e.forced = QStringLiteral("x11");
+        QVERIFY(xwaylandFallback(e));
+        e.forced = QStringLiteral("portal"); // способ не X11 — снимок не через Xwayland
+        QVERIFY(!xwaylandFallback(e));
+        e = env("xcb");
+        QVERIFY(!xwaylandFallback(e)); // обычный сеанс X11
+        e = env("wayland");
+        e.waylandDisplay = true;
+        QVERIFY(!xwaylandFallback(e));
+    }
+
     void forcedMethod()
     {
         QCOMPARE(captureOrder(env("wayland", true, true, "portal")), (QVector<CaptureMethod>{CaptureMethod::Portal}));
@@ -76,8 +105,10 @@ private slots:
             return fakeCapture();
         };
         QStringList errors;
-        const auto c = captureScreensWith({CaptureMethod::Screencopy, CaptureMethod::Portal}, fns, &errors);
+        CaptureMethod used = CaptureMethod::X11;
+        const auto c = captureScreensWith({CaptureMethod::Screencopy, CaptureMethod::Portal}, fns, &errors, &used);
         QVERIFY(c.has_value());
+        QCOMPARE(used, CaptureMethod::Portal); // main печатает его в stderr
         QCOMPARE(calls, (QStringList{QStringLiteral("screencopy"), QStringLiteral("portal")}));
         QCOMPARE(errors, (QStringList{QStringLiteral("screencopy: нет доступа")}));
     }

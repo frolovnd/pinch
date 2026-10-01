@@ -255,5 +255,13 @@
         <source>another process is tracing pinch (ptrace), so the screenshot was aborted</source>
         <translation>к pinch подключён другой процесс через ptrace — снимок прерван</translation>
     </message>
+    <message id="warning.capture.xwayland">
+        <source>pinch is running through Xwayland (QT_QPA_PLATFORM=xcb in a Wayland session): the screenshot may be black. Run pinch without QT_QPA_PLATFORM=xcb.</source>
+        <translation>pinch запущен через Xwayland (QT_QPA_PLATFORM=xcb в сеансе Wayland): снимок может оказаться чёрным. Запустите pinch без QT_QPA_PLATFORM=xcb.</translation>
+    </message>
+    <message id="log.capture.method">
+        <source>pinch: capture method — %1</source>
+        <translation>pinch: способ снимка — %1</translation>
+    </message>
 </context>
 </TS>
