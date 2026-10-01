@@ -1,10 +1,12 @@
 #include <QtTest>
 
+#include "i18n.h"
 #include "overlaycontroller.h"
 #include "overlaysession.h"
 #include "screenview.h"
 #include "toolbar.h"
 
+#include <QLocale>
 #include <QPainter>
 #include <QToolButton>
 
@@ -30,13 +32,17 @@ struct Env {
     OverlayController ctl{makeCapture(), Settings{}, dir.path()};
     OverlaySession session{&ctl};
     bool finished = false;
+    int finishCount = 0; // finished должен приходить ровно один раз
     QImage copied;
     bool wasCopied = false;
-    ScreenView* grabber = nullptr; // окно, получившее последнее нажатие: ему идут движения и отпускание
+    ScreenView* grabber = nullptr; // окно, получившее нажатие: ему идут движения и отпускание до отпускания кнопки
 
     Env()
     {
-        QObject::connect(&ctl, &OverlayController::finished, [this] { finished = true; });
+        QObject::connect(&ctl, &OverlayController::finished, [this] {
+            finished = true;
+            ++finishCount;
+        });
         QObject::connect(&ctl, &OverlayController::copyRequested, [this](const QImage& image) {
             copied = image;
             wasCopied = true;
@@ -81,15 +87,19 @@ void sendMouse(QWidget* w, QEvent::Type type, QPoint local, Qt::MouseButton butt
     QApplication::sendEvent(w, &e);
 }
 
-// Событие мыши в координатах изображения. Нажатие получает окно под точкой; движения и отпускание — то же окно
-// (неявный захват указателя) в его локальных координатах, даже за его пределами.
+// Событие мыши в координатах изображения. Пока кнопка зажата (от нажатия до отпускания), события получает окно
+// нажатия (неявный захват указателя) в своих локальных координатах, даже за своими пределами; иначе — окно под точкой.
 void mouse(Env& e, QEvent::Type type, QPoint pos, Qt::MouseButton button, Qt::MouseButtons buttons,
            Qt::KeyboardModifiers mods = Qt::NoModifier)
 {
-    if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick || !e.grabber)
-        e.grabber = e.viewAt(pos);
-    QVERIFY2(e.grabber, "no view under the press point");
-    sendMouse(e.grabber, type, pos - e.grabber->imageRect().topLeft(), button, buttons, mods);
+    const bool held = type == QEvent::MouseButtonRelease || (type == QEvent::MouseMove && buttons != Qt::NoButton);
+    ScreenView* view = held && e.grabber ? e.grabber : e.viewAt(pos);
+    QVERIFY2(view, "no view under the point");
+    if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick)
+        e.grabber = view;
+    else if (type == QEvent::MouseButtonRelease)
+        e.grabber = nullptr;
+    sendMouse(view, type, pos - view->imageRect().topLeft(), button, buttons, mods);
 }
 
 void drag(Env& e, QPoint from, QPoint to, Qt::KeyboardModifiers mods = Qt::NoModifier)
@@ -153,7 +163,12 @@ QRgb dimmed(QRgb rgb)
 class TestOverlay : public QObject {
     Q_OBJECT
 private slots:
-    void initTestCase() { g_previousHandler = qInstallMessageHandler(filterPlatformNoise); }
+    void initTestCase()
+    {
+        g_previousHandler = qInstallMessageHandler(filterPlatformNoise);
+        // Без таблиц qtTrId вернул бы голый ключ, и .arg() в подсказках панели предупреждал бы о лишних аргументах.
+        installTranslations(*QCoreApplication::instance(), QLocale(QStringLiteral("en_US")));
+    }
     void cleanupTestCase() { qInstallMessageHandler(g_previousHandler); }
 
     void dragSelects()
@@ -230,6 +245,38 @@ private slots:
         QVERIFY(e.wasCopied);
         QVERIFY(visibleAtCopy);
         QVERIFY(e.allHidden());
+    }
+
+    void closingViewCancels_data()
+    {
+        QTest::addColumn<int>("index");
+        QTest::newRow("first") << 0;
+        QTest::newRow("second") << 1;
+    }
+
+    // Композитор закрыл одно окно (Alt+F4, Super+Q): отменяется весь оверлей, а не прячется одно окно.
+    void closingViewCancels()
+    {
+        QFETCH(int, index);
+        Env e;
+        drag(e, {10, 10}, {110, 60});
+        e.view(index)->close();
+        QVERIFY(e.finished);
+        QCOMPARE(e.finishCount, 1); // своё скрытие окон (hide) не присылает closeEvent и не отменяет повторно
+        QVERIFY(e.allHidden());
+        QVERIFY(!e.wasCopied);
+    }
+
+    void mirroredScreensShareOneView()
+    {
+        Capture c;
+        c.image = QImage(400, 300, QImage::Format_RGB32);
+        c.image.fill(QColor(100, 100, 100));
+        c.screens = {QRect(0, 0, 400, 300), QRect(0, 0, 400, 300)}; // два монитора в режиме зеркала
+        OverlayController ctl{c, Settings{}, QString()};
+        OverlaySession session{&ctl};
+        QCOMPARE(session.views().size(), 1);
+        QCOMPARE(session.views().at(0)->imageRect(), QRect(0, 0, 400, 300));
     }
 
     void viewPaintsItsRegion()
@@ -405,6 +452,7 @@ private slots:
         Env e;
         QTest::keyClick(e.view(), Qt::Key_Escape);
         QVERIFY(e.finished);
+        QCOMPARE(e.finishCount, 1);
         QVERIFY(e.allHidden());
     }
 

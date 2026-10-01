@@ -1,9 +1,11 @@
 #include <QtTest>
 
+#include "i18n.h"
 #include "toolbar.h"
 
 #include <QLabel>
 #include <QLayout>
+#include <QLocale>
 #include <QSlider>
 #include <QWheelEvent>
 #include <QToolButton>
@@ -29,6 +31,9 @@ QSlider* slider(Toolbar& tb)
 class TestToolbar : public QObject {
     Q_OBJECT
 private slots:
+    // Без таблиц qtTrId вернул бы голый ключ, и .arg() в подсказках пресетов предупреждал бы о лишних аргументах.
+    void initTestCase() { installTranslations(*QCoreApplication::instance(), QLocale(QStringLiteral("en_US"))); }
+
     void clickToolEmitsAndChecks()
     {
         Toolbar tb;

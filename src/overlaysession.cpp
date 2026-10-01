@@ -9,6 +9,7 @@
 #include <QScreen>
 #include <QWindow>
 
+#include <algorithm>
 #include <utility>
 
 namespace {
@@ -39,6 +40,11 @@ OverlaySession::OverlaySession(OverlayController* controller, QObject* parent)
     if (rects.isEmpty())
         rects = {controller->capture().image.rect()}; // мониторы неизвестны: одно окно на всё изображение, как раньше
     for (const QRect& rect : std::as_const(rects)) {
+        // Зеркальные мониторы (одинаковая геометрия — один и тот же QScreen): одно окно, а не два полноэкранных на одном.
+        const bool duplicate = std::any_of(m_views.cbegin(), m_views.cend(),
+                                           [&rect](const ScreenView* v) { return v->imageRect() == rect; });
+        if (duplicate)
+            continue;
         auto* view = new ScreenView(controller, rect);
         controller->attachView(view);
         m_views.append(view);

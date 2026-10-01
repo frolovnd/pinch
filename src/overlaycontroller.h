@@ -47,6 +47,8 @@ public:
     void keyPress(QKeyEvent* event);
     // Рисует кадр в координатах изображения; imageRect — видимая окну часть.
     void paint(QPainter& painter, const QRect& imageRect) const;
+    // Отмена: скрыть окна и завершить (Esc, кнопка панели, закрытие окна композитором).
+    void cancel();
 
 signals:
     void copyRequested(const QImage& result); // испускается ДО hideRequested
@@ -67,7 +69,6 @@ private:
     void copyResult();
     void saveQuick();
     void saveAs();
-    void cancel();
     void showError(const QString& text);
     void documentChanged();
     void updateToolbar();

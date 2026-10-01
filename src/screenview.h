@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QPointer>
 #include <QRect>
 #include <QWidget>
 
@@ -21,10 +22,11 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     QPoint toImage(const QPointF& local) const; // локальные координаты окна → координаты изображения
 
-    OverlayController* m_controller;
+    QPointer<OverlayController> m_controller; // контроллер живёт дольше окон; null — окну нечего делать
     QRect m_imageRect; // часть изображения (монитор), которую показывает окно
 };
