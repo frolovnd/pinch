@@ -27,6 +27,21 @@ Capture composeScreens(const QVector<ScreenShot>& shots)
     return result;
 }
 
+Capture captureFromWorkspaceImage(const QImage& image, const QVector<QRect>& screens)
+{
+    QRect united;
+    for (const QRect& s : screens)
+        united |= s;
+    Capture capture;
+    capture.origin = united.topLeft();
+    for (const QRect& s : screens)
+        capture.screens << s.translated(-capture.origin);
+    capture.image = image.size() == united.size()
+        ? image
+        : image.scaled(united.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    return capture;
+}
+
 std::optional<Capture> captureAllScreens()
 {
     QVector<ScreenShot> shots;

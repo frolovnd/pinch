@@ -1,5 +1,6 @@
 #include "capturebackend.h"
 #include "kwincapture.h"
+#include "portalcapture.h"
 #include "screencopy.h"
 
 #include <QCoreApplication>
@@ -96,6 +97,12 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
             geometries << s->geometry();
         return captureWithKWin(QDBusConnection::sessionBus(), geometries, error);
     };
-    // Задача 5 добавляет сюда Portal.
+    fns[CaptureMethod::Portal] = [](QString* error) {
+        QVector<QRect> geometries;
+        const QList<QScreen*> qscreens = QGuiApplication::screens();
+        for (QScreen* s : qscreens)
+            geometries << s->geometry();
+        return captureWithPortal(QDBusConnection::sessionBus(), geometries, error);
+    };
     return captureScreensWith(order, fns, errors);
 }

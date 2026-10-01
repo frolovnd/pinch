@@ -56,6 +56,24 @@ private slots:
         QVERIFY(c.image.isNull());
         QVERIFY(c.screens.isEmpty());
     }
+
+    void workspaceImageScalesAndShiftsScreens()
+    {
+        // Изображение 8x4 (физические пиксели), мониторы объединяются в 4x2 логических со смещением (-4, 10).
+        const Capture c = captureFromWorkspaceImage(solid({8, 4}, kRed), {QRect(-4, 10, 2, 2), QRect(-2, 10, 2, 2)});
+        QCOMPARE(c.image.size(), QSize(4, 2));
+        QCOMPARE(c.origin, QPoint(-4, 10));
+        QCOMPARE(c.screens, (QVector<QRect>{QRect(0, 0, 2, 2), QRect(2, 0, 2, 2)}));
+        QCOMPARE(c.image.pixel(3, 1), kRed);
+    }
+
+    void workspaceImageOfMatchingSizeIsKept()
+    {
+        const Capture c = captureFromWorkspaceImage(solid({4, 2}, kGreen), {QRect(0, 0, 4, 2)});
+        QCOMPARE(c.image.size(), QSize(4, 2));
+        QCOMPARE(c.origin, QPoint(0, 0));
+        QCOMPARE(c.image.pixel(0, 0), kGreen);
+    }
 };
 
 QTEST_MAIN(TestCapture)

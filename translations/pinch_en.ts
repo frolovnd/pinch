@@ -219,5 +219,33 @@
         <source>KWin returned data in an unexpected format</source>
         <translation>KWin returned data in an unexpected format</translation>
     </message>
+    <message id="error.capture.portal.no_screens">
+        <source>no monitors to capture</source>
+        <translation>no monitors to capture</translation>
+    </message>
+    <message id="error.capture.portal.call_failed">
+        <source>portal call failed: %1</source>
+        <translation>portal call failed: %1</translation>
+    </message>
+    <message id="error.capture.portal.timeout">
+        <source>the portal did not respond in time</source>
+        <translation>the portal did not respond in time</translation>
+    </message>
+    <message id="error.capture.portal.denied">
+        <source>The portal refused to take a screenshot. In GNOME: Settings → Apps → pinch → allow screenshots</source>
+        <translation>The portal refused to take a screenshot. In GNOME: Settings → Apps → pinch → allow screenshots</translation>
+    </message>
+    <message id="error.capture.portal.bad_uri">
+        <source>the portal returned an unsupported address (only file:// is accepted)</source>
+        <translation>the portal returned an unsupported address (only file:// is accepted)</translation>
+    </message>
+    <message id="error.capture.portal.bad_image">
+        <source>could not read the image returned by the portal</source>
+        <translation>could not read the image returned by the portal</translation>
+    </message>
+    <message id="warning.capture.portal.file_kept">
+        <source>portal file left in place: %1</source>
+        <translation>portal file left in place: %1</translation>
+    </message>
 </context>
 </TS>

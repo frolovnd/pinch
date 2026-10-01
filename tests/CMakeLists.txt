@@ -32,6 +32,13 @@ pinch_add_test(test_kwincapture)
 add_dependencies(test_kwincapture fake_kwin)
 target_include_directories(test_kwincapture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(test_kwincapture PRIVATE FAKE_KWIN_PATH="$<TARGET_FILE:fake_kwin>")
+# Клиент xdg-desktop-portal против поддельного портала.
+add_executable(fake_portal fakes/fake_portal.cpp)
+target_link_libraries(fake_portal PRIVATE Qt6::Gui Qt6::DBus pinch_options)
+pinch_add_test(test_portalcapture)
+add_dependencies(test_portalcapture fake_portal)
+target_include_directories(test_portalcapture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(test_portalcapture PRIVATE FAKE_PORTAL_PATH="$<TARGET_FILE:fake_portal>")
 if(PINCH_WAYLAND)
     pinch_add_test(test_screencopy_live)
 

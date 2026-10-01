@@ -180,15 +180,5 @@ std::optional<Capture> captureWithKWin(QDBusConnection bus, const QVector<QRect>
     if (!image)
         return fail(qtTrId("error.capture.kwin.bad_reply"));
 
-    QRect united;
-    for (const QRect& s : screens)
-        united |= s;
-    Capture capture;
-    capture.origin = united.topLeft();
-    for (const QRect& s : screens)
-        capture.screens << s.translated(-capture.origin);
-    capture.image = image->size() == united.size()
-        ? std::move(*image)
-        : image->scaled(united.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    return capture;
+    return captureFromWorkspaceImage(*image, screens);
 }
