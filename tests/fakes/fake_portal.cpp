@@ -1,7 +1,7 @@
 // Поддельный xdg-desktop-portal: org.freedesktop.portal.Desktop, интерфейсы org.freedesktop.portal.Screenshot и
 // org.freedesktop.host.portal.Registry (как в xdg-desktop-portal ≥ 1.19 — на том же объекте).
 // Режим и путь к картинке — аргументы командной строки: <mode> <imagePath>;
-// mode: ok | deny | symlink | silent | fifo | host | http | noregistry.
+// mode: ok | deny | symlink | silent | fifo | host | http | noregistry | late.
 // Как настоящий портал, опознаёт вызывающего по /proc/<pid>/root (fakeauth.h): недампируемому — AccessDenied.
 // Screenshot отвечает только соединению, которое прежде зарегистрировалось с идентификатором PINCH_APP_ID;
 // в режиме noregistry (старый портал) интерфейса Registry нет и регистрация не нужна.
@@ -21,6 +21,54 @@
 #include <QVariantMap>
 
 #include <sys/stat.h>
+
+// Объект запроса для режима late: «портал» отвечает через 1 с и пишет файл со снимком, если запрос не закрыли раньше.
+// Close оставляет метку <imagePath>.closed — по ней тест видит, что pinch закрыл запрос.
+class FakeRequest : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.portal.Request")
+public:
+    FakeRequest(QString path, QString imagePath, QObject* parent)
+        : QObject(parent), m_path(std::move(path)), m_imagePath(std::move(imagePath))
+    {
+        m_timer.setSingleShot(true);
+        connect(&m_timer, &QTimer::timeout, this, &FakeRequest::respond);
+        m_timer.start(1000);
+    }
+
+public slots:
+    void Close()
+    {
+        m_timer.stop();
+        QFile marker(m_imagePath + QStringLiteral(".closed"));
+        if (marker.open(QIODevice::WriteOnly))
+            marker.close();
+        finish();
+    }
+
+private:
+    void respond()
+    {
+        QImage img(4, 2, QImage::Format_RGB32);
+        img.fill(qRgb(0, 0, 0xff));
+        img.save(m_imagePath, "PNG");
+        QDBusMessage signal = QDBusMessage::createSignal(m_path, QStringLiteral("org.freedesktop.portal.Request"),
+                                                         QStringLiteral("Response"));
+        signal << 0u << QVariantMap{{QStringLiteral("uri"), QUrl::fromLocalFile(m_imagePath).toString()}};
+        QDBusConnection::sessionBus().send(signal);
+        finish();
+    }
+
+    void finish()
+    {
+        QDBusConnection::sessionBus().unregisterObject(m_path);
+        deleteLater();
+    }
+
+    QString m_path;
+    QString m_imagePath;
+    QTimer m_timer;
+};
 
 class FakeScreenshot : public QObject, protected QDBusContext {
     Q_OBJECT
@@ -90,6 +138,9 @@ public slots:
             results.insert(QStringLiteral("uri"), QStringLiteral("http://example.com/x.png"));
         } else if (m_mode == QLatin1String("deny")) {
             code = 1;
+        } else if (m_mode == QLatin1String("late")) {
+            connection().registerObject(path, new FakeRequest(path, m_imagePath, this), QDBusConnection::ExportAllSlots);
+            return QDBusObjectPath(path);
         } else {
             return QDBusObjectPath(path); // silent: сигнал не посылаем
         }

@@ -71,11 +71,11 @@ std::optional<Capture> captureScreens(const CaptureEnvironment& env, QStringList
 
 ### 4.4 Портал (GNOME и запасной везде) — `portalcapture.{h,cpp}`
 - Первым вызовом — `org.freedesktop.host.portal.Registry.Register("io.github.ufna.pinch", {})` у самого портала (сервис `org.freedesktop.portal.Desktop`, путь `/org/freedesktop/portal/desktop`, xdg-desktop-portal ≥ 1.19): идентификатор приложения (имя установленного `.desktop`) для хранения разрешения; ошибка (старый портал без интерфейса) — не ошибка снимка. Тот же идентификатор — `QGuiApplication::setDesktopFileName` (app_id окон Wayland).
-- `org.freedesktop.portal.Screenshot.Screenshot("", {interactive: false, handle_token: "pinch<случайное>"})`; ждём сигнал `Response` у объекта запроса (локальный `QEventLoop`, таймаут 15 с).
+- `org.freedesktop.portal.Screenshot.Screenshot("", {interactive: false, handle_token: "pinch<случайное>"})`; ждём сигнал `Response` у объекта запроса (локальный `QEventLoop`, таймаут 15 с). По тайм-ауту (и если вызов не дождался ответа) — `org.freedesktop.portal.Request.Close` на путях запроса, чтобы портал не записал файл со снимком позже.
 - `response != 0` (отказ/отмена) → ошибка метода с понятным текстом: «Портал отказал в снимке экрана. В GNOME: Настройки → Приложения → pinch → разрешить снимки экрана».
 - `uri` должен быть `file://`; файл читаем в память (`QImage::fromData`).
 - **Удаление файла портала** (чтобы снимки не копились): только если `lstat` показывает обычный файл (не симлинк), владелец — текущий пользователь, и `mtime` не раньше момента запроса минус 2 с. Иначе файл не трогаем и пишем предупреждение в stderr.
-- Портал отдаёт один снимок всего стола: `origin` и `screens` — из `QScreen::geometry()`, как в 4.3; если размер картинки не совпадает с охватывающим прямоугольником, картинка масштабируется в него.
+- Портал отдаёт один снимок всего стола: `origin` и `screens` — из `QScreen::geometry()`, как в 4.3; если размер картинки не совпадает с охватывающим прямоугольником, картинка масштабируется в него. Результат приводится к `Format_RGB32` (PNG может прийти с альфой, палитрой и т. п.).
 
 ## 5. Оверлей: окно на каждый монитор
 

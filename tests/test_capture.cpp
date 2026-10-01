@@ -74,6 +74,30 @@ private slots:
         QCOMPARE(c.origin, QPoint(0, 0));
         QCOMPARE(c.image.pixel(0, 0), kGreen);
     }
+
+    // Портал отдаёт PNG в любом формате (ARGB32, палитра, оттенки серого): Capture — всегда Format_RGB32.
+    void workspaceImageIsNormalizedToRgb32_data()
+    {
+        QTest::addColumn<int>("format");
+        QTest::addColumn<QSize>("size");
+        QTest::newRow("argb32, same size") << int(QImage::Format_ARGB32) << QSize(4, 2);
+        QTest::newRow("argb32, scaled") << int(QImage::Format_ARGB32) << QSize(8, 4);
+        QTest::newRow("indexed8") << int(QImage::Format_Indexed8) << QSize(4, 2);
+        QTest::newRow("grayscale8, scaled") << int(QImage::Format_Grayscale8) << QSize(8, 4);
+        QTest::newRow("rgb888") << int(QImage::Format_RGB888) << QSize(4, 2);
+    }
+
+    void workspaceImageIsNormalizedToRgb32()
+    {
+        QFETCH(int, format);
+        QFETCH(QSize, size);
+        QImage image = solid(size, qRgb(0x80, 0x80, 0x80)).convertToFormat(static_cast<QImage::Format>(format));
+        QVERIFY(!image.isNull());
+        const Capture c = captureFromWorkspaceImage(image, {QRect(0, 0, 4, 2)});
+        QCOMPARE(c.image.format(), QImage::Format_RGB32);
+        QCOMPARE(c.image.size(), QSize(4, 2));
+        QCOMPARE(c.image.pixel(1, 1), qRgb(0x80, 0x80, 0x80));
+    }
 };
 
 QTEST_MAIN(TestCapture)

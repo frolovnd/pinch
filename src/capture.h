@@ -29,4 +29,5 @@ std::optional<Capture> captureAllScreens();
 // Строит Capture из изображения всей рабочей области. screens — логические геометрии мониторов (QScreen::geometry())
 // в глобальных координатах: origin — левый верхний угол их объединения, экраны сдвигаются в координаты изображения;
 // если размер изображения отличается от объединения, оно масштабируется (физические пиксели -> логические).
+// Результат всегда в Format_RGB32.
 Capture captureFromWorkspaceImage(const QImage& image, const QVector<QRect>& screens);

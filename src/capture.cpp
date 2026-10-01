@@ -36,9 +36,11 @@ Capture captureFromWorkspaceImage(const QImage& image, const QVector<QRect>& scr
     capture.origin = united.topLeft();
     for (const QRect& s : screens)
         capture.screens << s.translated(-capture.origin);
-    capture.image = image.size() == united.size()
+    const QImage logical = image.size() == united.size()
         ? image
         : image.scaled(united.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    // Контракт Capture — Format_RGB32, а картинка портала может прийти с альфой, палитрой, в оттенках серого и т. п.
+    capture.image = logical.convertToFormat(QImage::Format_RGB32);
     return capture;
 }
 

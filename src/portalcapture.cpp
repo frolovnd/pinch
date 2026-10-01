@@ -42,6 +42,17 @@ public slots:
     }
 };
 
+// Закрывает запросы портала (org.freedesktop.portal.Request.Close): pinch больше не ждёт ответа, и портал не должен
+// потом сохранить снимок в файл, который уже никто не прочитает и не удалит. Ошибки (запроса уже нет) не важны.
+void closeRequests(QDBusConnection& bus, const QStringList& paths)
+{
+    for (const QString& path : paths) {
+        QDBusMessage close = QDBusMessage::createMethodCall(PORTAL_SERVICE, path, QStringLiteral("org.freedesktop.portal.Request"),
+                                                            QStringLiteral("Close"));
+        bus.call(close, QDBus::Block, 1000);
+    }
+}
+
 } // namespace
 
 bool shouldDeletePortalFile(const QString& path, qint64 requestStartSecs)
@@ -119,13 +130,33 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
     const QVariantMap options{{QStringLiteral("handle_token"), token}, {QStringLiteral("interactive"), false}};
     msg << QString() << options;
     QDBusMessage reply;
+    bool traced = false;
     {
         ScopedDumpable dumpable; // как и для Register: портал читает /proc/<pid>/root
         reply = bus.call(msg, QDBus::Block, static_cast<int>(qMax<qint64>(1, deadline.remainingTime())));
-        if (!dumpable.restore())
-            return fail(qtTrId("error.capture.tracer_attached"));
+        traced = !dumpable.restore();
+    }
+    QStringList requests{path}; // пути запроса, которые закрываем, если сдаёмся раньше ответа
+
+    // Старые порталы (< 0.9) возвращают путь запроса, отличный от вычисленного: подписываемся и на него.
+    if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()
+        && reply.arguments().first().canConvert<QDBusObjectPath>()) {
+        const QString returned = reply.arguments().first().value<QDBusObjectPath>().path();
+        if (!returned.isEmpty() && returned != path) {
+            requests << returned;
+            if (bus.connect(QString(), returned, QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
+                            &waiter, SLOT(onResponse(uint, QVariantMap))))
+                subscribed << returned;
+        }
+    }
+    if (traced) {
+        closeRequests(bus, requests);
+        return fail(qtTrId("error.capture.tracer_attached"));
     }
     if (reply.type() == QDBusMessage::ErrorMessage) {
+        // Вызов не дождался ответа: портал мог всё же создать запрос.
+        if (reply.errorName() == QLatin1String("org.freedesktop.DBus.Error.NoReply"))
+            closeRequests(bus, requests);
         QString text = reply.errorMessage();
         if (text.isEmpty())
             text = reply.errorName();
@@ -133,15 +164,6 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
     }
     if (reply.type() != QDBusMessage::ReplyMessage)
         return fail(qtTrId("error.capture.portal.call_failed").arg(bus.lastError().message()));
-
-    // Старые порталы (< 0.9) возвращают путь запроса, отличный от вычисленного: подписываемся и на него.
-    if (!reply.arguments().isEmpty() && reply.arguments().first().canConvert<QDBusObjectPath>()) {
-        const QString returned = reply.arguments().first().value<QDBusObjectPath>().path();
-        if (!returned.isEmpty() && !subscribed.contains(returned)
-            && bus.connect(QString(), returned, QStringLiteral("org.freedesktop.portal.Request"),
-                           QStringLiteral("Response"), &waiter, SLOT(onResponse(uint, QVariantMap))))
-            subscribed << returned;
-    }
 
     // 4. Ожидание ответа с пределом по времени.
     if (!waiter.done && !deadline.hasExpired()) {
@@ -151,8 +173,10 @@ std::optional<Capture> captureWithPortal(QDBusConnection bus, const QVector<QRec
         timer.start(static_cast<int>(qMax<qint64>(1, deadline.remainingTime())));
         waiter.loop.exec();
     }
-    if (!waiter.done)
+    if (!waiter.done) {
+        closeRequests(bus, requests);
         return fail(qtTrId("error.capture.portal.timeout"));
+    }
 
     // 5. Отказ.
     if (waiter.response != 0)

@@ -169,6 +169,26 @@ private slots:
         expectError(QStringLiteral("silent"), qtTrId("error.capture.portal.timeout"), 500);
     }
 
+    // Тайм-аут: pinch закрывает запрос (Request.Close), и портал потом не пишет файл со снимком, который никто не удалит.
+    void timeoutClosesRequest()
+    {
+        QTemporaryDir dir;
+        const QString img = dir.filePath(QStringLiteral("portal.png"));
+        DBusTestBus bus;
+        QVERIFY(bus.start());
+        QProcess fake;
+        QVERIFY(bus.startService(fake, QStringLiteral(FAKE_PORTAL_PATH), {QStringLiteral("late"), img},
+                                 QStringLiteral("org.freedesktop.portal.Desktop")));
+        QString error;
+        QVERIFY(!captureWithPortal(bus.connect(QStringLiteral("p-late")), {QRect(0, 0, 4, 2)}, &error, 300).has_value());
+        QVERIFY2(error.contains(qtTrId("error.capture.portal.timeout")), qPrintable(error));
+        QVERIFY(QFile::exists(img + QStringLiteral(".closed"))); // Close — блокирующий вызов: метка уже есть
+        QTest::qWait(1200);                                       // позже, чем «портал» ответил бы без Close
+        QVERIFY(!QFile::exists(img));
+        fake.terminate();
+        fake.waitForFinished(3000);
+    }
+
     void fifoIsRejectedWithoutHang()
     {
         QElapsedTimer t;
