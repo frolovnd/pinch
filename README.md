@@ -6,7 +6,7 @@
 ## Сборка и установка
 
 ```bash
-sudo apt install qt6-base-dev qt6-tools-dev qt6-l10n-tools cmake g++
+sudo apt install qt6-base-dev qt6-tools-dev qt6-l10n-tools libwayland-dev libwayland-bin cmake g++
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
 ctest --test-dir build --output-on-failure
@@ -22,6 +22,11 @@ scripts/set-gnome-shortcut.sh   # Shift+Super+S → pinch
 cmake -S . -B build-asan -DPINCH_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-asan -j && ctest --test-dir build-asan --output-on-failure
 ```
+
+Wayland (`-DPINCH_WAYLAND=ON`, по умолчанию) требует `wayland-client` и `wayland-scanner`
+(Ubuntu — `libwayland-dev libwayland-bin`, Arch — `wayland`); `-DPINCH_WAYLAND=OFF` — сборка только для X11.
+Тест `test_screencopy_fake` (клиент screencopy против поддельного композитора) собирается, только если найден
+`wayland-server.pc` — он из того же пакета (`libwayland-dev` / `wayland`); без него тест просто не регистрируется.
 
 ## Управление
 
@@ -45,7 +50,7 @@ cmake --build build-asan -j && ctest --test-dir build-asan --output-on-failure
 ## Сборка на других дистрибутивах (Arch и др.)
 
 ```bash
-sudo pacman -S qt6-base qt6-tools cmake gcc noto-fonts   # шрифты нужны для значков кнопок панели
+sudo pacman -S qt6-base qt6-tools wayland cmake gcc noto-fonts   # шрифты нужны для значков кнопок панели
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
 ```

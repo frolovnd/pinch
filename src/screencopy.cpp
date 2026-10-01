@@ -26,8 +26,12 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-// Общий тайм-аут на всё общение с композитором (обмен с реестром и все кадры).
-constexpr int kTimeoutSeconds = 5;
+// Срок ожидания: момент и исходная длительность (для текста ошибки).
+struct Deadline {
+    explicit Deadline(int ms) : at(Clock::now() + std::chrono::milliseconds(ms)), ms(ms) {}
+    Clock::time_point at;
+    int ms;
+};
 
 // unique_ptr для объектов libwayland: Destroy — функция освобождения объекта.
 template <typename T, void (*Destroy)(T*)>
@@ -132,10 +136,11 @@ struct Session {
     WlPtr<wl_registry, wl_registry_destroy> registry;
     WlPtr<wl_shm, wl_shm_destroy> shm;
     WlPtr<zwlr_screencopy_manager_v1, zwlr_screencopy_manager_v1_destroy> manager;
-    std::vector<std::unique_ptr<Output>> outputs;
+    std::vector<std::unique_ptr<Output>> outputs; // не больше SCREENCOPY_MAX_OUTPUTS
     std::vector<std::unique_ptr<Frame>> frames;
     bool bindObjects = false;      // false — только проверить наличие менеджера (screencopyAvailable)
     bool managerAnnounced = false; // композитор объявил zwlr_screencopy_manager_v1
+    int outputsAnnounced = 0;      // сколько wl_output объявлено (в т. ч. сверх лимита)
 };
 
 bool setError(QString* error, const QString& text)
@@ -152,15 +157,15 @@ bool connectionError(wl_display* display, QString* error, int fallbackErrno)
     return setError(error, qtTrId("error.capture.wayland.connection_error").arg(qt_error_string(code ? code : fallbackErrno)));
 }
 
-bool timeoutError(QString* error)
+bool timeoutError(QString* error, const Deadline& deadline)
 {
-    return setError(error, qtTrId("error.capture.wayland.timeout").arg(kTimeoutSeconds));
+    return setError(error, qtTrId("error.capture.wayland.timeout").arg(QString::number(deadline.ms / 1000.0)));
 }
 
 // Обрабатывает события, пока done() не вернёт true. Никогда не ждёт дольше deadline.
 // false — тайм-аут или ошибка соединения (текст в error).
 template <typename Done>
-bool dispatchUntil(wl_display* display, Clock::time_point deadline, Done done, QString* error)
+bool dispatchUntil(wl_display* display, const Deadline& deadline, Done done, QString* error)
 {
     for (;;) {
         while (wl_display_prepare_read(display) != 0) {
@@ -178,10 +183,10 @@ bool dispatchUntil(wl_display* display, Clock::time_point deadline, Done done, Q
             wl_display_cancel_read(display);
             return connectionError(display, error, err);
         }
-        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count();
+        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.at - Clock::now()).count();
         if (left <= 0) {
             wl_display_cancel_read(display);
-            return timeoutError(error);
+            return timeoutError(error, deadline);
         }
         pollfd pfd = {};
         pfd.fd = wl_display_get_fd(display);
@@ -196,7 +201,7 @@ bool dispatchUntil(wl_display* display, Clock::time_point deadline, Done done, Q
         }
         if (ready == 0) {
             wl_display_cancel_read(display);
-            return timeoutError(error);
+            return timeoutError(error, deadline);
         }
         if (pfd.revents & POLLIN) {
             if (wl_display_read_events(display) < 0)
@@ -219,7 +224,7 @@ void onSyncDone(void* data, wl_callback*, uint32_t)
 const wl_callback_listener kSyncListener = {onSyncDone};
 
 // Аналог wl_display_roundtrip, но с тайм-аутом: ждём ответа на wl_display.sync.
-bool roundtrip(wl_display* display, Clock::time_point deadline, QString* error)
+bool roundtrip(wl_display* display, const Deadline& deadline, QString* error)
 {
     bool done = false;
     WlPtr<wl_callback, wl_callback_destroy> callback(wl_display_sync(display));
@@ -265,6 +270,9 @@ void onGlobal(void* data, wl_registry* registry, uint32_t name, const char* inte
         if (!s->shm)
             s->shm.reset(static_cast<wl_shm*>(wl_registry_bind(registry, name, &wl_shm_interface, 1)));
     } else if (std::strcmp(interface, wl_output_interface.name) == 0) {
+        ++s->outputsAnnounced;
+        if (s->outputs.size() >= size_t(SCREENCOPY_MAX_OUTPUTS))
+            return; // сверх лимита не привязываем; снимок завершится ошибкой
         auto output = std::make_unique<Output>();
         output->proxy.reset(static_cast<wl_output*>(
             wl_registry_bind(registry, name, &wl_output_interface, std::min<uint32_t>(4, version))));
@@ -354,7 +362,7 @@ const zwlr_screencopy_frame_v1_listener kFrameListener = {onFrameBuffer, onFrame
                                                           onFrameDamage, onFrameLinuxDmabuf, onFrameBufferDone};
 
 // Подключение и реестр. false — нет соединения или ошибка обмена (текст в error).
-bool openSession(Session& s, Clock::time_point deadline, int roundtrips, QString* error)
+bool openSession(Session& s, const Deadline& deadline, int roundtrips, QString* error)
 {
     s.display.reset(wl_display_connect(nullptr));
     if (!s.display)
@@ -374,16 +382,16 @@ bool openSession(Session& s, Clock::time_point deadline, int roundtrips, QString
 bool screencopyAvailable()
 {
     Session s;
-    return openSession(s, Clock::now() + std::chrono::seconds(kTimeoutSeconds), 1, nullptr) && s.managerAnnounced;
+    return openSession(s, Deadline(SCREENCOPY_TIMEOUT_MS), 1, nullptr) && s.managerAnnounced;
 }
 
-std::optional<Capture> captureWithScreencopy(const QVector<NamedScreen>& screens, QString* error)
+std::optional<Capture> captureWithScreencopy(const QVector<NamedScreen>& screens, QString* error, int timeoutMs)
 {
     const auto fail = [error](const QString& text) {
         setError(error, text);
         return std::nullopt;
     };
-    const Clock::time_point deadline = Clock::now() + std::chrono::seconds(kTimeoutSeconds);
+    const Deadline deadline(timeoutMs);
 
     Session s;
     s.bindObjects = true;
@@ -392,6 +400,8 @@ std::optional<Capture> captureWithScreencopy(const QVector<NamedScreen>& screens
         return std::nullopt;
     if (!s.manager || !s.shm)
         return fail(qtTrId("error.capture.screencopy.unsupported"));
+    if (s.outputsAnnounced > SCREENCOPY_MAX_OUTPUTS)
+        return fail(qtTrId("error.capture.screencopy.too_many_outputs").arg(SCREENCOPY_MAX_OUTPUTS));
 
     for (const auto& output : s.outputs) {
         auto frame = std::make_unique<Frame>();
@@ -450,7 +460,7 @@ bool screencopyAvailable()
     return false;
 }
 
-std::optional<Capture> captureWithScreencopy(const QVector<NamedScreen>&, QString* error)
+std::optional<Capture> captureWithScreencopy(const QVector<NamedScreen>&, QString* error, int)
 {
     if (error)
         *error = qtTrId("error.capture.wayland.not_built");

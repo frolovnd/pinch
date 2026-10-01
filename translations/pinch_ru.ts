@@ -191,5 +191,9 @@
         <source>could not match Wayland outputs to monitors</source>
         <translation>не удалось сопоставить выходы Wayland с мониторами</translation>
     </message>
+    <message id="error.capture.screencopy.too_many_outputs">
+        <source>too many Wayland outputs (more than %1)</source>
+        <translation>слишком много выходов Wayland (больше %1)</translation>
+    </message>
 </context>
 </TS>
