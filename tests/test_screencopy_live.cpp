@@ -8,8 +8,10 @@ class TestScreencopyLive : public QObject {
 private slots:
     void initTestCase()
     {
+        // QSKIP(сообщение, ...) — вариативный макрос: вызов без второго аргумента под clang с -Wpedantic (C++17) даёт
+        // -Wgnu-zero-variadic-macro-arguments (с -Werror — ошибку). Второй аргумент макрос отбрасывает.
         if (QStandardPaths::findExecutable(QStringLiteral("sway")).isEmpty())
-            QSKIP("sway не установлен — живой тест screencopy пропущен");
+            QSKIP("sway не установлен — живой тест screencopy пропущен", "");
         QVERIFY(m_runtime.isValid());
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         env.insert(QStringLiteral("XDG_RUNTIME_DIR"), m_runtime.path());

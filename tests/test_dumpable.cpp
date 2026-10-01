@@ -78,7 +78,7 @@ private slots:
     void detectsTracer()
     {
         if (!m_ptraceWorks)
-            QSKIP("ptrace is not permitted in this environment", "");
+            QSKIP("ptrace is not permitted in this environment", ""); // второй аргумент — см. test_screencopy_live.cpp
         TestTracer tracer;
         QVERIFY(tracer.attach(::getpid()));
         QVERIFY(!ScopedDumpable::noTracerAttached());
@@ -149,5 +149,6 @@ private:
     bool m_ptraceWorks = false;
 };
 
-QTEST_APPLESS_MAIN(TestDumpable)
+// Не QTEST_APPLESS_MAIN: в Qt 6.4 он раскрывается в вариативный макрос без аргументов (clang -Wpedantic).
+QTEST_GUILESS_MAIN(TestDumpable)
 #include "test_dumpable.moc"
