@@ -10,6 +10,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+include(GNUInstallDirs)
 include(CheckPIESupported)
 check_pie_supported()
 
@@ -108,7 +109,18 @@ target_link_libraries(pinch PRIVATE pinch_core)
 target_compile_definitions(pinch PRIVATE PINCH_VERSION="${PROJECT_VERSION}")
 install(TARGETS pinch DESTINATION bin)
 install(DIRECTORY data/icons/hicolor DESTINATION share/icons)
-install(FILES data/pinch.desktop DESTINATION share/applications)
+# Exec — абсолютный путь: по нему KWin сопоставляет процесс с .desktop (X-KDE-DBUS-Restricted-Interfaces).
+# build/pinch.desktop — для проверки (desktop-file-validate) с префиксом времени конфигурации;
+# при установке файл генерируется заново с настоящим префиксом (`cmake --install --prefix …`).
+configure_file(data/pinch.desktop.in ${CMAKE_CURRENT_BINARY_DIR}/pinch.desktop @ONLY)
+install(CODE "
+    set(CMAKE_INSTALL_FULL_BINDIR \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+    configure_file(\"${CMAKE_CURRENT_SOURCE_DIR}/data/pinch.desktop.in\"
+        \"${CMAKE_CURRENT_BINARY_DIR}/pinch-install.desktop\" @ONLY)
+    file(INSTALL \"${CMAKE_CURRENT_BINARY_DIR}/pinch-install.desktop\"
+        DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/applications\"
+        RENAME pinch.desktop)
+")
 
 enable_testing()
 add_subdirectory(tests)
