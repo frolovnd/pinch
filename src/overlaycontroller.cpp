@@ -15,6 +15,7 @@
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QPainter>
+#include <QRegion>
 #include <QTextStream>
 
 #include <utility>
@@ -230,17 +231,43 @@ void OverlayController::updateCursor(QPoint pos)
 void OverlayController::setViewsCursor(Qt::CursorShape shape)
 {
     for (const QPointer<ScreenView>& view : std::as_const(m_views)) {
-        if (view)
+        if (view && view->cursor().shape() != shape)
             view->setCursor(shape);
     }
 }
 
 void OverlayController::updateViews()
 {
-    for (const QPointer<ScreenView>& view : std::as_const(m_views)) {
-        if (view)
-            view->update();
+    QRegion dirty(bounds());
+    if (m_drag == Drag::Selecting && !m_selection.isEmpty() && !m_previousSelection.isEmpty()) {
+        // The overlap stays identical while selecting: only changed strips,
+        // old/new handles and size labels need repainting.
+        dirty = QRegion(m_selection).xored(QRegion(m_previousSelection));
+        for (const QRect& selection : {m_previousSelection, m_selection}) {
+            dirty += QRegion(selection.adjusted(-8, -8, 8, 8))
+                .subtracted(QRegion(selection.adjusted(8, 8, -8, -8)));
+            for (const QPointer<ScreenView>& view : std::as_const(m_views)) {
+                if (!view)
+                    continue;
+                const QFontMetrics metrics(view->font());
+                const QString text = QStringLiteral("%1×%2").arg(selection.width()).arg(selection.height());
+                const QSize size(metrics.horizontalAdvance(text) + 12, metrics.height() + 6);
+                dirty += QRect(sizeLabelPosition(selection, size, m_capture.screens), size).adjusted(-2, -2, 2, 2);
+            }
+        }
     }
+    for (const QPointer<ScreenView>& view : std::as_const(m_views)) {
+        if (!view)
+            continue;
+        if (m_selection.isEmpty() && m_previousSelection.isEmpty()) {
+            view->update();
+        } else {
+            const QRegion local = dirty.intersected(view->imageRect()).translated(-view->imageRect().topLeft());
+            if (!local.isEmpty())
+                view->update(local);
+        }
+    }
+    m_previousSelection = m_selection;
 }
 
 QRect OverlayController::screenAt(QPoint pos) const
@@ -668,11 +695,20 @@ void OverlayController::paint(QPainter& painter, const QRect& imageRect) const
             paintHint(painter);
         return;
     }
-    if (!m_cacheValid) {
-        m_cache = ::render(m_capture.image, m_selection, m_document.annotations());
-        m_cacheValid = true;
+    if (m_document.annotations().isEmpty()) {
+        // Selection alone needs no intermediate copy of the screenshot.
+        const QRect visible = m_selection.intersected(imageRect);
+        if (!visible.isEmpty())
+            painter.drawImage(visible.topLeft(), m_capture.image, visible);
+    } else {
+        if (!m_cacheValid) {
+            m_cache = ::render(m_capture.image, m_selection, m_document.annotations());
+            m_cacheValid = true;
+        }
+        const QRect visible = m_selection.intersected(imageRect);
+        if (!visible.isEmpty())
+            painter.drawImage(visible.topLeft(), m_cache, visible.translated(-m_selection.topLeft()));
     }
-    painter.drawImage(m_selection.topLeft(), m_cache);
     paintCurrent(painter);
     paintSelectionFrame(painter);
     paintSizeLabel(painter);

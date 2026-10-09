@@ -96,6 +96,7 @@ private:
     bool m_defaultToolApplied = false; // умолчательный инструмент уже применён или пользователь выбрал свой
     Document m_document;
     QRect m_selection;
+    QRect m_previousSelection; // previous requested paint area
     QRect m_hintScreen; // монитор под курсором, пока выделения нет
     // Панель — дочерний виджет одного из окон, но принадлежит контроллеру (сессия отцепляет её до удаления окон).
     QPointer<Toolbar> m_toolbar;
