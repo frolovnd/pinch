@@ -128,6 +128,24 @@ install(CODE "
     configure_file(\"${PINCH_DESKTOP_IN}\" \"${PINCH_DESKTOP_INSTALL}\" @ONLY)
 ")
 install(FILES ${PINCH_DESKTOP_INSTALL} DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
+# Пакет .deb: `cpack -G DEB` в каталоге сборки (scripts/build-deb.sh собирает его в контейнере Ubuntu).
+# Зависимости от библиотек находит dpkg-shlibdeps; плагин Qt для Wayland загружается в рантайме — указан явно.
+# CPACK_SET_DESTDIR: пакет ставится в CMAKE_INSTALL_PREFIX через DESTDIR (скрипт конфигурирует с /usr), иначе Exec
+# в .desktop указал бы во временный каталог упаковки.
+set(CPACK_PACKAGE_NAME pinch)
+set(CPACK_PACKAGE_CONTACT "Nikolay Prudnikov <n.n.prudnikov@gmail.com>")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Screenshot tool: select an area, annotate it, copy or save")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/ufna/pinch")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_SET_DESTDIR ON)
+set(CPACK_STRIP_FILES ON)
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_DEBIAN_PACKAGE_SECTION graphics)
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-wayland")
+include(CPack)
 
 enable_testing()
 add_subdirectory(tests)

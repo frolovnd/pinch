@@ -74,10 +74,23 @@ stays in the background only until something else takes the clipboard.
 
 ## Install
 
+Packages for **Arch Linux** and **Ubuntu 24.04 / 26.04** are on the
+[releases page](https://github.com/ufna/pinch/releases/latest). Download the one for your system, then:
+
+```bash
+sudo pacman -U pinch-*-x86_64.pkg.tar.zst            # Arch
+sudo apt install ./pinch_*_ubuntu24.04_amd64.deb     # Ubuntu 24.04 (26.04: the ubuntu26.04 file)
+```
+
+They install `/usr/bin/pinch`, the icon and a menu entry. On Arch you can also build the package
+yourself with `makepkg -si` in `packaging/arch`.
+
+### Build from source
+
 Ubuntu / Debian:
 
 ```bash
-sudo apt install qt6-base-dev qt6-wayland qt6-tools-dev qt6-l10n-tools libwayland-dev libwayland-bin cmake g++
+sudo apt install qt6-base-dev qt6-wayland qt6-tools-dev qt6-l10n-tools libwayland-dev libwayland-bin pkg-config cmake g++
 ```
 
 Arch:
@@ -99,12 +112,14 @@ add `-DPINCH_WERROR=OFF` to the first command.
 
 ### Hotkey
 
-pinch takes a screenshot when it starts, so bind it to a key:
+pinch takes a screenshot when it starts, so bind it to a key. The examples use `/usr/bin/pinch` from a package;
+after a source install it is `~/.local/bin/pinch`.
 
-- **GNOME:** `scripts/set-gnome-shortcut.sh` (sets Shift+Super+S), or Settings → Keyboard → Custom Shortcuts.
+- **GNOME:** Settings → Keyboard → Custom Shortcuts. If you already have a custom shortcut,
+  `scripts/set-gnome-shortcut.sh /usr/bin/pinch` points the first one at pinch.
 - **KDE Plasma:** System Settings → Keyboard → Shortcuts → Add New → Application → pinch.
-- **Hyprland:** `bind = SUPER SHIFT, S, exec, ~/.local/bin/pinch`
-- **Sway:** `bindsym $mod+Shift+s exec ~/.local/bin/pinch`
+- **Hyprland:** `bind = SUPER SHIFT, S, exec, /usr/bin/pinch`
+- **Sway:** `bindsym $mod+Shift+s exec /usr/bin/pinch`
 
 ## Keys
 
@@ -126,7 +141,7 @@ Hotkeys work in any keyboard layout. The interface follows the system language (
 
 ## Notes
 
-- **KDE:** run the installed `pinch` (after `cmake --install`); otherwise screenshots go through the slower portal.
+- **KDE:** run the installed `pinch` (from a package or `cmake --install`); otherwise screenshots go through the slower portal.
 - **GNOME:** the first screenshot may need permission: Settings → Apps → pinch → Screenshots.
 - If capturing fails, pinch shows the reason. You can force a method:
   `PINCH_CAPTURE=x11|screencopy|kwin|portal pinch`.

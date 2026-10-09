@@ -1,8 +1,10 @@
 [Desktop Entry]
 Type=Application
 Name=pinch
-GenericName=Скриншот
-Comment=Скриншот области экрана с рисованием
+GenericName=Screenshot Tool
+GenericName[ru]=Скриншот
+Comment=Select an area of the screen and annotate it
+Comment[ru]=Скриншот области экрана с рисованием
 Exec=@CMAKE_INSTALL_FULL_BINDIR@/pinch
 Icon=pinch
 Terminal=false
