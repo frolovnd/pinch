@@ -97,8 +97,14 @@ QImage applyOutputTransform(const QImage& image, int wlTransform)
     const int quarterTurns = wlTransform & 3; // 90, 180, 270 (младшие биты; бит 4 — flipped)
     if (quarterTurns != 0)
         out = out.transformed(QTransform().rotate(90.0 * quarterTurns)); // в QImage (y вниз) — по часовой стрелке
-    if (wlTransform & 4)
+    if (wlTransform & 4) {
+        // mirrored() устарел в Qt 6.9 (-Werror ломает сборку); flipped() появился там же, а Ubuntu 24.04 — это Qt 6.4.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+        out = out.flipped(Qt::Horizontal);
+#else
         out = out.mirrored(true, false);
+#endif
+    }
     return out;
 }
 

@@ -2,7 +2,7 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru">
 <context>
-    <name>pinch</name>
+    <name></name>
     <message id="app.description">
         <source>Screenshot tool: select an area and annotate it</source>
         <translation>Скриншот области экрана с рисованием</translation>
